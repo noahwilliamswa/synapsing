@@ -1,1 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Synaps.ing — Linked Markdown Notebooks</title>
+<style>
+  /* ===== Design Tokens (rem-based typography) ===== */
+  :root{
+    /* Palette (overridden by prefs) */
+    --paper:#f2eee6; --paper-2:#ebe4d7; --paper-3:#e5dccb;
+    --sheet:#fffdfa; --ink:#111; --red:#7a0000; --accent:#b40000;
+    --line:rgba(0,0,0,.12);
+    --shadow:0 10px 30px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.06);
+    --radius:16px;
+    --serif:"Georgia","Times New Roman",serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+
+    /* Typography (11/13/15/18px) */
+    --fs-11:0.6875rem;
+    --fs-13:0.8125rem;
+    --fs-15:0.9375rem;
+    --fs-18:1.125rem;
+
+    /* Paper line style: unruled | dots | grid | lined */
+    --lines: lined;
+
+    /* Noise opacity (0–1) */
+    --noise: .08;
+
+    /* Editor ruling color */
+    --rule-color: rgba(122,0,0,.07);
+
+    /* Background media (set by prefs) */
+    --bg-image: none;
+    --bg-size: cover;
+
+    /* Columns & chips */
+    --stack-col-h: 190px;
+    --chip-h: 28px;
+
+    /* Button metrics */
+    --btn-pad-y: .35rem;
+    --btn-pad-x: .65rem;
+    --btn-gap: .45rem;
+    --btn-ic: 14px;
+
+    /* Chip background opacity (toggled by UI) */
+    --chip-rgb: 255,253,248;
+    --chip-alpha: 1; /* 1 = solid, ~0.66 = translucent */
+  }
+
+  html,body{height:100%}
+  body{
+    margin:0; color:var(--ink); font-family:var(--serif);
+    background: var(--paper);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    position:relative; z-index:0;
+  }
+  /* Ensure universal serif across controls */
+  input, button, select, textarea { font-family: var(--serif); }
+
+  /* Global background image (pure, full-color) */
+  body.bg-image-on{
+    background: transparent;
+  }
+  body.bg-image-on::after{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image: var(--bg-image);
+    background-size: var(--bg-size);
+    background-position:center center; background-repeat:no-repeat;
+    opacity: 1; /* full color */
+  }
+
+  /* Global paper noise texture (disabled when bg-image-on) */
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:1;
+    background-image:
+      radial-gradient(rgba(0,0,0,var(--noise)) 1px, transparent 1px),
+      url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAYAAAB1Gk9kAAAAdElEQVR4nO2WsQkCMQwDPc6c8C5woaYwXwS2d8yqCq1rj+f4+o2y0qY6nJrjS/8B8QyqHq7WZsR8fT3h9c4hF0+qM4JQ6sI+8d7b2rT7l5fQ0VtQy8sH0Zl7U0o0hCj+Y9h0l3A7d0fQ1v8h5q0j6g0rWcQm6e+5kLw/C7H8c4sH1Fz3q9L5k1pD9W8Q7S0oHkqM7V1vHcQ5Y5nVvQw==');
+    background-size:
+      6px 6px,
+      128px 32px;
+    mix-blend-mode:multiply;
+    opacity:1;
+  }
+  body.bg-image-on::before{ display:none; }
+
+  /* ===== Scrollbar styling (minimal, show on hover) ===== */
+  .scroll-minimal{ scrollbar-width: thin; scrollbar-color: rgba(0,0,0,.25) transparent; }
+  .scroll-minimal::-webkit-scrollbar{ width:0; height:0; }
+  .scroll-minimal:hover::-webkit-scrollbar{ width:8px; height:8px; }
+  .scroll-minimal::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.25); border-radius:8px; }
+  .scroll-minimal::-webkit-scrollbar-track{ background: transparent; }
+
+  /* ===== Range slider (minimal) ===== */
+  input[type="range"]{ -webkit-appearance:none; appearance:none; width:100%; background:transparent; height:22px; }
+  input[type="range"]::-webkit-slider-runnable-track{ height:2px; background: rgba(0,0,0,.2); border-radius:2px; }
+  input[type="range"]::-moz-range-track{ height:2px; background: rgba(0,0,0,.2); border-radius:2px; }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:12px; height:12px; border-radius:50%;
+    background: var(--accent); margin-top:-5px; cursor:pointer;
+  }
+  input[type="range"]::-moz-range-thumb{ width:12px; height:12px; border:none; border-radius:50%; background: var(--accent); cursor:pointer; }
+
+  /* ===== Top bar ===== */
+  .topbar{
+    position:sticky; top:0; z-index:100;
+    display:grid; grid-template-columns:1fr 2fr 1fr; align-items:center;
+    gap:10px; padding:.6rem 1rem; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(241,237,229,.95), rgba(241,237,229,.88));
+    backdrop-filter:saturate(1.05) blur(6px);
+  }
+  .brand{font-weight:700; letter-spacing:.25px; font-size:var(--fs-18); white-space:nowrap}
+  .brand span{color:var(--accent)}
+  .stack-center{display:flex; gap:.35rem; justify-content:center; flex-wrap:wrap; align-items:center}
+  .crumb{padding:.15rem .5rem;border:1px solid var(--line);border-radius:999px;background:var(--sheet);cursor:pointer; font-size:var(--fs-11); white-space:nowrap}
+
+  .select,.input{
+    font-size:var(--fs-13);
+    border:1px solid var(--line); border-radius:10px; background:var(--sheet);
+    padding:.35rem .55rem; white-space:nowrap
+  }
+
+  .btn{
+    font-size:var(--fs-13);
+    border:1px solid var(--line); border-radius:10px; background:var(--sheet); white-space:nowrap;
+    padding:var(--btn-pad-y) var(--btn-pad-x); cursor:pointer; display:inline-flex; align-items:center; gap:var(--btn-gap);
+  }
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{border-color:var(--accent)}
+  .btn .ic{width:var(--btn-ic); height:var(--btn-ic); display:inline-flex}
+  .btn .ic svg{width:100%; height:100%}
+  .btn .label{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+
+  .searchbox{display:flex; justify-content:flex-end; gap:.5rem; align-items:center; min-width:0}
+  .searchbox input[type="search"]{
+    min-width: 520px; max-width:100%; flex:1 1 720px;
+    padding:.45rem .75rem;border-radius:999px;border:1px solid var(--line);background:var(--sheet);outline:none;
+    font-size:var(--fs-13)
+  }
+  .searchbox input:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(180,0,0,.12)}
+  .switch{
+    display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .55rem; border-radius:999px; border:1px solid var(--line); background:var(--sheet); cursor:pointer; font-size:var(--fs-13)
+  }
+  .switch input{accent-color:var(--accent)}
+
+  /* ===== Layout ===== */
+  .wrap{max-width:1220px;margin:20px auto calc(240px + 2rem);padding:0 18px;display:grid;grid-template-columns:280px 1fr 280px;gap:18px; position:relative; z-index:2}
+
+  /* ===== Front-side metadata (upper-left) ===== */
+  .front-card{
+    background:var(--sheet); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);
+    overflow:hidden; display:flex; flex-direction:column; min-height:260px;
+  }
+  .front-head{padding:10px 12px; border-bottom:1px dashed var(--line); display:flex; align-items:center; gap:.6rem}
+  .id-badge{margin-left:auto; font-weight:700; opacity:.85; font-size:var(--fs-13)}
+  .front-body{padding:10px 12px; display:grid; gap:8px}
+  .chip{display:inline-block; padding:.2rem .5rem; border:1px solid var(--line); border-radius:999px; background:var(--sheet); white-space:nowrap; font-size:var(--fs-11)}
+  .front-section{padding:10px 12px; border-top:1px dashed var(--line)}
+  .front-section h4{margin:0 0 .4rem 0; font-size:var(--fs-13)}
+  .hierarchy{font-size:var(--fs-13)}
+  .hierarchy .link{cursor:pointer; color:var(--red); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+
+  /* ===== Back-side (editor only) ===== */
+  .back-card{
+    background:var(--sheet); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);
+    overflow:hidden; display:flex; flex-direction:column; min-height:560px;
+  }
+  .titlebar{
+    display:flex; align-items:center; gap:.6rem; padding:12px 14px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--sheet),rgba(255,253,250,.75));
+  }
+  .titlebar input.title{flex:1; font:700 var(--fs-18) var(--serif); border:none; outline:none; background:transparent}
+  .meta-row{
+    display:flex; flex-wrap:wrap; gap:.5rem .5rem; align-items:center; padding:8px 14px; border-bottom:1px dashed var(--line); background:var(--sheet);
+    font-size:var(--fs-13)
+  }
+  .meta-row label{opacity:.9; display:flex; gap:.4rem; align-items:center}
+  .meta-row input{font:400 var(--fs-13) var(--serif); border:1px solid var(--line); padding:.3rem .5rem; border-radius:10px; background:var(--sheet); outline:none}
+  .meta-row input:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(180,0,0,.12)}
+  .editor-pane{padding:0; position:relative; flex:1; display:flex; min-height:420px;}
+  textarea#md{
+    width:100%; height:100%; border:0; outline:none; resize:none; padding:16px;
+    font:var(--fs-15)/1.6 var(--serif);
+    background:var(--sheet);
+    /* Ruled background driven by --lines */
+    background-image: var(--editor-bg);
+    background-size: var(--editor-bg-size, auto);
+  }
+  .helper{position:absolute; inset:auto 16px 16px auto; font-size:var(--fs-11); opacity:.7}
+
+  /* Popover menu (stack picker) */
+  .popover{
+    position:absolute; z-index:50; background:var(--sheet); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
+    min-width:200px; max-height:220px; overflow:auto; padding:6px; display:none;
+  }
+  .popover.open{ display:block; }
+  .menu-item{
+    padding:.35rem .5rem; border-radius:8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .menu-item:hover{ background:rgba(0,0,0,.05); }
+
+  /* ===== Right rail ===== */
+  .right-rail{display:grid; gap:14px}
+  .blk{
+    background:var(--sheet); border:1px dashed var(--line); border-radius:var(--radius);
+    display:flex; align-items:center; justify-content:center; min-height:110px;
+  }
+  .blk .btn{font-weight:600}
+
+  /* ===== Bottom bar — ALL stacks, each column vertical overlay ===== */
+  .bottombar{
+    position:fixed; left:0; right:0; bottom:0; z-index:3; border-top:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(241,237,229,.94), rgba(241,237,229,.98));
+  }
+  .bottom-inner{max-width:1220px; margin:0 auto; padding:10px 18px}
+  .tools-row{display:flex; align-items:center; gap:.5rem; margin-bottom:6px; flex-wrap:wrap}
+  .tools-row .hint{font-size:var(--fs-11); opacity:.8; white-space:nowrap}
+  .stacks-row{ display:block; overflow-x:auto; padding-bottom:10px; white-space:nowrap; }
+
+  /* Stack columns — sticky header, real vertical scroll, fade hints, theme-aware */
+  .stack-col{
+    position:relative; display:inline-block; vertical-align:top;
+    width:260px; height:var(--stack-col-h); margin-right:18px;
+    background:var(--paper-2);
+    border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);
+    padding:8px 10px; overflow:hidden;
+  }
+  .stack-col:nth-child(3n+2){background:var(--paper-3)}
+  .stack-col:nth-child(3n+3){background:var(--paper)}
+
+  .stack-col .shead{
+    position:sticky; top:0; z-index:2;
+    display:flex; justify-content:space-between; align-items:center;
+    font-weight:700; margin-bottom:6px; font-size:var(--fs-13);
+    background:transparent; /* no background */
+    border-bottom:1px dashed var(--line);
+    padding-bottom:6px;
+  }
+  .stack-col .shead .stitle{
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;
+    cursor:text;
+  }
+  .stack-col .shead .stack-title-input{
+    font:700 var(--fs-13) var(--serif);
+    border:1px solid var(--line); border-radius:8px; background:var(--sheet);
+    padding:.2rem .4rem; width:70%;
+  }
+  .stack-col .shead .count{font-weight:400; opacity:.85}
+
+  .stack-col .pile{
+    position:relative; width:100%;
+    height:calc(var(--stack-col-h) - 44px);
+    overflow-y:auto; overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    padding-right:6px;
+  }
+  .stack-col .pile.scroll-minimal{ scrollbar-width:thin; scrollbar-color: rgba(0,0,0,.28) transparent; }
+  .stack-col .pile.scroll-minimal::-webkit-scrollbar{ width:0; height:0; }
+  .stack-col:hover .pile.scroll-minimal::-webkit-scrollbar{ width:8px; height:8px; }
+  .stack-col .pile.scroll-minimal::-webkit-scrollbar-thumb{ background:rgba(0,0,0,.28); border-radius:8px; }
+  .stack-col .pile.scroll-minimal::-webkit-scrollbar-track{ background:transparent; }
+
+  .stack-col .pile::before,
+  .stack-col .pile::after{
+    content:""; position:absolute; left:0; right:0; height:12px; pointer-events:none; z-index:1;
+    opacity:0; transition:opacity .15s ease;
+  }
+  .stack-col .pile::before{ top:0; background:linear-gradient(to bottom, rgba(0,0,0,.12), rgba(0,0,0,0)); }
+  .stack-col .pile::after{ bottom:0; background:linear-gradient(to top, rgba(0,0,0,.12), rgba(0,0,0,0)); }
+  .stack-col .pile.scrolled-mid::before,
+  .stack-col .pile.scrolled-mid::after{ opacity:.35; }
+  .stack-col .pile.scrolled-top::after{ opacity:.35; }
+  .stack-col .pile.scrolled-bottom::before{ opacity:.35; }
+  .pile-sizer{ width:1px; height:0; }
+
+  .note-chip{
+    position:absolute; left:0; right:0;
+    height:var(--chip-h); padding:0 10px; border-radius:10px; border:1px solid var(--line);
+    background: rgba(var(--chip-rgb), var(--chip-alpha));
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:var(--fs-13); box-shadow:0 6px 14px rgba(0,0,0,.08);
+    cursor:pointer; transition:transform .15s ease, box-shadow .15s ease, left .15s ease, opacity .15s ease;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  body.chips-translucent .note-chip{
+    backdrop-filter: blur(2px) saturate(1.05);
+    border-color: rgba(0,0,0,.2);
+  }
+  .note-chip span.title{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:8px; font-weight:600}
+  .note-chip span.hid{font-weight:700; opacity:.85}
+  .note-chip:hover{transform:translateY(-2px); box-shadow:0 10px 18px rgba(0,0,0,.12)}
+  .note-chip.active{outline:2px solid rgba(180,0,0,.3)}
+  .depth-0{left:0}
+  .depth-1{left:10px}
+  .depth-2{left:20px}
+  .depth-3{left:30px}
+  .hidden{display:none}
+
+  /* ===== Modal ===== */
+  .modal{ position:fixed; inset:0; background:rgba(0,0,0,.25); display:none; align-items:center; justify-content:center; z-index:200; }
+  .modal.open{display:flex}
+  .dialog{ width:min(720px, 92vw); background:var(--sheet); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); padding:14px; position:relative; }
+  .dialog h3{margin:0 0 8px; font-size:var(--fs-18)}
+  .row{display:grid; grid-template-columns:180px 1fr; gap:10px; align-items:center; margin:8px 0; font-size:var(--fs-13)}
+  .actions{display:flex; justify-content:flex-end; gap:.5rem; margin-top:10px}
+
+  @media (max-width:1100px){
+    .wrap{grid-template-columns:1fr}
+    .right-rail{order:3}
+  }
+</style>
+</head>
+<body class="scroll-minimal">
+
+  <!-- Inline SVG icons -->
+  <svg width="0" height="0" style="position:absolute;visibility:hidden">
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v12m0-12 4 4m-4-4-4 4M5 21h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 21V9m0 12 4-4m-4 4-4-4M5 3h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-theme" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 4 4 0 0 1-4-4 4 4 0 0 1-5-5Z" stroke="currentColor" stroke-width="2" fill="none"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 21h14V7l-4-4H5v18Zm4-1v-6h6v6M6 7h9" stroke="currentColor" stroke-width="2" fill="none"/></symbol>
+    <symbol id="i-dup" viewBox="0 0 24 24"><path d="M8 8h11v11H8zM5 5h11v11H5z" stroke="currentColor" stroke-width="2" fill="none"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2m-8 0 1 12h8l1-12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-note-export" viewBox="0 0 24 24"><path d="M6 3h9l3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Zm6 7v8m0-8 3 3m-3-3-3 3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-caret" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <div class="brand">Synaps<span>.ing</span></div>
+    <div class="stack-center">
+      <select id="stackSelector" class="select" title="Current stack"></select>
+      <button id="addStackBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">Stack</span></button>
+      <nav class="stack-center" id="breadcrumb"></nav>
+    </div>
+    <div class="searchbox">
+      <input id="search" type="search" placeholder="Search… (tag:, contains:, title:, stack:, id:)"/>
+      <label class="switch"><input type="checkbox" id="filterMode"> Filter</label>
+      <label class="switch"><input type="checkbox" id="chipTransparent"> Transparent</label>
+      <button id="exportBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-export"/></svg></span><span class="label">Export</span></button>
+      <button id="importBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-import"/></svg></span><span class="label">Import</span></button>
+      <input id="importInput" type="file" accept="application/json" class="hidden"/>
+      <button id="prefsBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-theme"/></svg></span><span class="label">Theme</span></button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- FRONT SIDE (upper-left) -->
+    <aside class="front-card" id="frontCard">
+      <div class="front-head">
+        <input id="frontTitle" class="input" placeholder="Note Title" style="border:none; outline:none; background:transparent; font-weight:700; width:70%"/>
+        <span class="id-badge" id="frontId">—</span>
+      </div>
+      <div class="front-body" id="frontMeta">
+        <span class="chip" id="chipStack">stack: Inbox</span>
+        <span class="chip" id="chipCreated">created: —</span>
+        <span class="chip" id="chipModified">modified: —</span>
+        <div id="chipTags"></div>
+      </div>
+      <div class="front-section">
+        <h4>Notebook hierarchy</h4>
+        <div class="hierarchy" id="hierarchy">
+          <div class="subtle">No links yet.</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- BACK SIDE (center — editor only) -->
+    <section class="back-card">
+      <div class="titlebar">
+        <input id="titleInput" class="title" placeholder="Untitled note" list="stackList"/>
+        <button class="btn" id="duplicateBtn"><span class="ic"><svg><use xlink:href="#i-dup"/></svg></span><span class="label">Duplicate</span></button>
+        <button class="btn" id="exportNoteBtn"><span class="ic"><svg><use xlink:href="#i-note-export"/></svg></span><span class="label">Export</span></button>
+        <button class="btn" id="deleteBtn"><span class="ic"><svg><use xlink:href="#i-trash"/></svg></span><span class="label">Delete</span></button>
+        <button class="btn primary" id="saveBtn"><span class="ic"><svg><use xlink:href="#i-save"/></svg></span><span class="label">Save</span></button>
+      </div>
+      <div class="meta-row" id="metaRow">
+        <label>Stack
+          <input id="stackInput" class="input" placeholder="e.g., Research/Topic" list="stackList"/>
+          <datalist id="stackList"></datalist>
+          <button id="stackPickerBtn" class="btn" title="Pick stack"><span class="ic"><svg><use xlink:href="#i-caret"/></svg></span><span class="label">Pick</span></button>
+        </label>
+        <label>Tags <input id="tagsInput" class="input" placeholder="comma,separated,tags"/></label>
+        <span style="margin-left:auto" class="subtle">Created: <span id="createdMeta">—</span></span>
+        <span class="subtle">Modified: <span id="modifiedMeta">—</span></span>
+        <div id="stackPicker" class="popover"></div>
+      </div>
+      <div class="editor-pane">
+        <textarea id="md" class="scroll-minimal" spellcheck="false" placeholder="# Start writing…
+
+• Use [[Note Title]] to link or create (sibling).
+• Use >>Subnote>> to create a subnote (child).
+• IDs: stack.note.child.subchild → e.g., 1.233.433
+
+Ctrl/Cmd+S save · Cmd/Ctrl+D duplicate · Cmd/Ctrl+E export note · Cmd/Ctrl+Backspace delete
+Cmd/Ctrl+F search · Cmd/Ctrl+Shift+F toggle filter · Cmd/Ctrl+Alt+T toggle transparency"></textarea>
+        <div class="helper">[[…]] and >>…>> autocomplete</div>
+      </div>
+    </section>
+
+    <!-- RIGHT RAIL -->
+    <aside class="right-rail">
+      <div class="blk"><button id="newNoteBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">New Note</span></button></div>
+      <div class="blk"><button id="newSubBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">New Subnote</span></button></div>
+      <div class="blk"><button id="newStackBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">New Stack</span></button></div>
+    </aside>
+  </main>
+
+  <!-- BOTTOM: ALL STACKS with vertically stacked notes/subnotes -->
+  <footer class="bottombar">
+    <div class="bottom-inner">
+      <div class="tools-row">
+        <span class="hint">All stacks shown · Double-click a stack title to rename · Double-click a stack column to focus · Click a card to open</span>
+      </div>
+      <div class="stacks-row scroll-minimal" id="stacksRow"></div>
+    </div>
+  </footer>
+
+  <!-- Export menu -->
+  <div id="exportMenu" class="modal">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="expTitle">
+      <h3 id="expTitle">Export Notebook</h3>
+      <div class="row">
+        <label>Format</label>
+        <div>
+          <label><input type="radio" name="expfmt" value="json" checked> JSON (single file)</label><br/>
+          <label><input type="radio" name="expfmt" value="mdzip"> Markdown (.zip with .md files)</label>
+        </div>
+      </div>
+      <div class="row">
+        <label>Scope</label>
+        <div>
+          <label><input type="radio" name="expscope" value="all" checked> All stacks</label><br/>
+          <label><input type="radio" name="expscope" value="current"> Current stack only</label>
+        </div>
+      </div>
+      <div class="row">
+        <label>Safe filenames</label>
+        <div>
+          <label><input type="checkbox" id="expSafe" checked> ASCII-only names (helps avoid OS warnings)</label>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="expCancel"><span class="ic"><svg><use xlink:href="#i-import"/></svg></span><span class="label">Cancel</span></button>
+        <button class="btn primary" id="expGo"><span class="ic"><svg><use xlink:href="#i-export"/></svg></span><span class="label">Export</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preferences -->
+  <div id="prefsMenu" class="modal">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="prefTitle">
+      <h3 id="prefTitle">Theme & Preferences</h3>
+
+      <div class="row">
+        <label for="prefPaper">Paper tone</label>
+        <select id="prefPaper" class="select">
+          <option value="parchment">Parchment</option>
+          <option value="cream">Cream</option>
+          <option value="warm">Warm</option>
+          <option value="cool">Cool</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="prefLines">Line style</label>
+        <select id="prefLines" class="select">
+          <option value="unruled">Unruled</option>
+          <option value="lined" selected>Lined</option>
+          <option value="dots">Dots</option>
+          <option value="grid">Grid</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="prefFont">Text size</label>
+        <select id="prefFont" class="select">
+          <option value="sm">Small</option>
+          <option value="md" selected>Medium</option>
+          <option value="lg">Large</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="prefSerif">Serif font</label>
+        <input id="prefSerif" class="input" placeholder="e.g., Georgia, 'Times New Roman', serif"/>
+      </div>
+      <div class="row">
+        <label for="prefMono">Mono font</label>
+        <input id="prefMono" class="input" placeholder="e.g., ui-monospace, Menlo, Consolas, 'Courier New', monospace"/>
+      </div>
+
+      <div class="row">
+        <label>Colors</label>
+        <div style="display:flex; gap:.5rem; flex-wrap:wrap">
+          <label>Ink <input id="prefInk" type="color" value="#111111" class="input" style="padding:.2rem .3rem; width:84px"/></label>
+          <label>Accent <input id="prefAccent" type="color" value="#b40000" class="input" style="padding:.2rem .3rem; width:84px"/></label>
+          <label>Red <input id="prefRed" type="color" value="#7a0000" class="input" style="padding:.2rem .3rem; width:84px"/></label>
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="prefNoise">Paper grain</label>
+        <input type="range" id="prefNoise" min="0" max="0.25" step="0.01"/>
+      </div>
+
+      <div class="row">
+        <label>Background image</label>
+        <div style="display:grid; gap:.5rem">
+          <input id="prefBgUrl" class="input" placeholder="Paste image URL (https://...)"/>
+          <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
+            <label>Size
+              <select id="prefBgSize" class="select">
+                <option value="cover" selected>Cover</option>
+                <option value="contain">Contain</option>
+              </select>
+            </label>
+            <button class="btn" id="prefBgClear"><span class="ic"><svg><use xlink:href="#i-import"/></svg></span><span class="label">Clear</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <label>Theme JSON</label>
+        <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
+          <button class="btn" id="themeExport"><span class="ic"><svg><use xlink:href="#i-export"/></svg></span><span class="label">Export Theme</span></button>
+          <button class="btn" id="themeImportBtn"><span class="ic"><svg><use xlink:href="#i-import"/></svg></span><span class="label">Import Theme</span></button>
+          <input id="themeImport" type="file" accept="application/json" class="hidden"/>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="prefCancel"><span class="ic"><svg><use xlink:href="#i-import"/></svg></span><span class="label">Cancel</span></button>
+        <button class="btn primary" id="prefSave"><span class="ic"><svg><use xlink:href="#i-save"/></svg></span><span class="label">Save</span></button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =========================
+   Synaps.ing — Main Interface (editor-only) with QoL + theming
+   ========================= */
+(function(){
+  "use strict";
+
+  /* ---------- Storage ---------- */
+  const LS_KEY = 'synapsing_notes_v6';
+  const PREFS_KEY = 'synapsing_prefs_v4'; // bumped for bg-mode & chip class
+  const VERSION = 6;
+  const state = { currentId:null, notes:[], stacks:[], selectedStack:null, filtered:null, filterMode:false };
+
+  /* ---------- Helpers ---------- */
+  const $ = (sel,root=document)=>root.querySelector(sel);
+  const $$ = (sel,root=document)=>Array.from(root.querySelectorAll(sel));
+  const id = (x)=>document.getElementById(x);
+  const nowISO = ()=>new Date().toISOString();
+  const fmt = (iso)=> iso ? new Date(iso).toLocaleString() : '—';
+  const uid = ()=> `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+  const escapeHTML = s => String(s).replace(/[&<>]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+  const safeName = (s, asciiOnly=true)=> {
+    const base = (s||'').toString();
+    const cleaned = asciiOnly ? base.normalize('NFKD').replace(/[^\x20-\x7E]+/g,'') : base;
+    return cleaned.replace(/[^\w\-\.\/]+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
+  };
+
+  function saveAll(){ localStorage.setItem(LS_KEY, JSON.stringify({version:VERSION, notes:state.notes, stacks:state.stacks})); }
+  function loadAll(){
+    try{
+      const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+      state.notes = raw.notes || [];
+      state.stacks = raw.stacks || [];
+    }catch{ state.notes=[]; state.stacks=[]; }
+    if(state.stacks.length===0) state.stacks = ['Inbox'];
+    if(state.notes.length===0){
+      const n = createNote({title:'Welcome', stack:'Inbox', tags:['getting-started'], content:`# Welcome
+
+Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
+      state.currentId = n.id; saveAll();
+    }
+    if(!state.selectedStack) state.selectedStack = getNote(state.currentId)?.stack || state.stacks[0];
+  }
+
+  /* ---------- Schema ---------- */
+  // note: {id,title,content,created,modified,stack,tags[],parentId,order}
+  function parseTags(s){ return !s ? [] : Array.isArray(s) ? s : String(s).split(',').map(t=>t.trim()).filter(Boolean); }
+  function stacksUnique(){ state.stacks = Array.from(new Set(state.stacks)); }
+  function getNote(nid){ return state.notes.find(n=>n.id===nid); }
+  function listByStack(stack){ return state.notes.filter(n=> (n.stack||'Inbox') === (stack||'Inbox')).sort((a,b)=> (a.order||0)-(b.order||0)); }
+  function listChildren(parentId){ return state.notes.filter(n=> n.parentId===parentId).sort((a,b)=> (a.order||0)-(b.order||0)); }
+  function listTopLevel(stack){ return state.notes.filter(n=> n.stack===stack && !n.parentId).sort((a,b)=> (a.order||0)-(b.order||0)); }
+  function stackIndex(stack){ return state.stacks.indexOf(stack)+1; }
+  function nextOrderFor(parentId, stack){
+    const pool = parentId ? listChildren(parentId) : listTopLevel(stack);
+    const max = pool.reduce((m,n)=> Math.max(m, n.order||0), 0);
+    return max+1;
+  }
+
+  function createNote(part={}, silent=false){
+    const created = nowISO();
+    if(!state.stacks.includes(part.stack||'Inbox')) state.stacks.push(part.stack||'Inbox');
+    stacksUnique();
+    const note = {
+      id: uid(),
+      title: (part.title||'Untitled').trim() || 'Untitled',
+      content: part.content||'',
+      created, modified: created,
+      stack: (part.stack||state.selectedStack||'Inbox'),
+      tags: parseTags(part.tags||[]),
+      parentId: part.parentId || null,
+      order: nextOrderFor(part.parentId||null, (part.stack||state.selectedStack||'Inbox'))
+    };
+    state.notes.push(note);
+    if(!silent){ state.currentId = note.id; state.selectedStack = note.stack; saveAll(); }
+    return note;
+  }
+  function updateNote(id, fields){
+    const n = getNote(id); if(!n) return;
+    const prevStack = n.stack;
+    Object.assign(n, fields);
+    if(fields.stack && fields.stack !== prevStack){
+      if(!state.stacks.includes(fields.stack)) state.stacks.push(fields.stack);
+      if(!n.parentId) n.order = nextOrderFor(null, n.stack);
+      state.selectedStack = n.stack;
+    }
+    n.modified = nowISO(); stacksUnique(); saveAll(); return n;
+  }
+  function duplicateNote(nid){
+    const n = getNote(nid); if(!n) return;
+    return createNote({ title:n.title+' (copy)', content:n.content, stack:n.stack, tags:n.tags.slice(), parentId:n.parentId });
+  }
+
+  /* ---------- Hierarchical ID ---------- */
+  function hierarchicalId(n){
+    if(!n) return '—';
+    const parts = [stackIndex(n.stack)];
+    const lineage = [];
+    let cur = n;
+    while(cur){
+      const siblings = cur.parentId ? listChildren(cur.parentId) : listTopLevel(cur.stack);
+      const idx = siblings.findIndex(x=>x.id===cur.id) + 1;
+      lineage.push(idx);
+      cur = cur.parentId ? getNote(cur.parentId) : null;
+    }
+    return parts.concat(lineage.reverse()).join('.');
+  }
+
+  /* ---------- Elements ---------- */
+  const els = {
+    stackSelector: id('stackSelector'), addStackBtn: id('addStackBtn'),
+    breadcrumb: id('breadcrumb'), search: id('search'), filterMode: id('filterMode'),
+    chipTransparent: id('chipTransparent'),
+    exportBtn: id('exportBtn'), exportMenu: id('exportMenu'), expCancel:id('expCancel'), expGo:id('expGo'), expSafe:id('expSafe'),
+    importBtn:id('importBtn'), importInput: id('importInput'),
+    prefsBtn: id('prefsBtn'), prefsMenu: id('prefsMenu'), prefCancel:id('prefCancel'), prefSave:id('prefSave'),
+    prefPaper: id('prefPaper'), prefLines: id('prefLines'), prefFont: id('prefFont'),
+    prefSerif: id('prefSerif'), prefMono:id('prefMono'), prefInk:id('prefInk'), prefAccent:id('prefAccent'), prefRed:id('prefRed'),
+    prefNoise: id('prefNoise'),
+    prefBgUrl:id('prefBgUrl'), prefBgSize:id('prefBgSize'), prefBgClear:id('prefBgClear'),
+    themeExport:id('themeExport'), themeImport:id('themeImport'), themeImportBtn:id('themeImportBtn'),
+    titleInput: id('titleInput'), stackInput: id('stackInput'), tagsInput: id('tagsInput'),
+    stackPickerBtn: id('stackPickerBtn'), stackPicker: id('stackPicker'),
+    md: id('md'),
+    createdMeta: id('createdMeta'), modifiedMeta: id('modifiedMeta'),
+    saveBtn: id('saveBtn'), duplicateBtn: id('duplicateBtn'), deleteBtn:id('deleteBtn'), exportNoteBtn:id('exportNoteBtn'),
+    newNoteBtn: id('newNoteBtn'), newSubBtn: id('newSubBtn'), newStackBtn: id('newStackBtn'),
+    frontTitle: id('frontTitle'), frontId: id('frontId'), chipStack: id('chipStack'), chipCreated: id('chipCreated'), chipModified: id('chipModified'), chipTags: id('chipTags'),
+    hierarchy: id('hierarchy'),
+    stacksRow: id('stacksRow'),
+    stackList: id('stackList')
+  };
+
+  /* ---------- Preferences ---------- */
+  function loadPrefs(){
+    const def = {
+      paper:'parchment', lines:'lined', font:'md', noise:.08,
+      serif:"Georgia, 'Times New Roman', serif",
+      mono:"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace",
+      colors:{ ink:'#111111', accent:'#b40000', red:'#7a0000' },
+      bg:{ url:'', size:'cover' },
+      chipsTransparent:false
+    };
+    try{ return Object.assign(def, JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')); }
+    catch{ return def; }
+  }
+  function applyPrefs(p){
+    const tones = {
+      parchment: ['#f2eee6','#ebe4d7','#e5dccb'],
+      cream: ['#f7f3ea','#efe6d7','#e8decc'],
+      warm: ['#f5efe8','#efe2d8','#e5d4c5'],
+      cool: ['#eceff1','#e4eaee','#dde3e8']
+    };
+    const C = tones[p.paper] || tones.parchment;
+    const root = document.documentElement.style;
+    root.setProperty('--paper', C[0]); root.setProperty('--paper-2', C[1]); root.setProperty('--paper-3', C[2]);
+    root.setProperty('--noise', p.bg?.url ? 0 : (p.noise ?? .08));
+    root.setProperty('--serif', p.serif); root.setProperty('--mono', p.mono);
+    root.setProperty('--ink', p.colors?.ink || '#111111');
+    root.setProperty('--accent', p.colors?.accent || '#b40000');
+    root.setProperty('--red', p.colors?.red || '#7a0000');
+
+    // Font sizing scale
+    if(p.font==='sm'){ root.setProperty('--fs-11','0.625rem'); root.setProperty('--fs-13','0.75rem'); root.setProperty('--fs-15','0.875rem'); root.setProperty('--fs-18','1rem'); }
+    else if(p.font==='lg'){ root.setProperty('--fs-11','0.75rem'); root.setProperty('--fs-13','0.875rem'); root.setProperty('--fs-15','1rem'); root.setProperty('--fs-18','1.25rem'); }
+    else { root.setProperty('--fs-11','0.6875rem'); root.setProperty('--fs-13','0.8125rem'); root.setProperty('--fs-15','0.9375rem'); root.setProperty('--fs-18','1.125rem'); }
+
+    // Editor rule style
+    const rule = p.lines || 'unruled';
+    let bg = 'none', bsz='auto';
+    const rc = 'var(--rule-color)';
+    if(rule==='lined'){ bg = `repeating-linear-gradient(#fffdfa, #fffdfa 28px, ${rc} 28px, ${rc} 29px)`; }
+    else if(rule==='dots'){ bg = `radial-gradient(${rc} 1px, transparent 1px)`; bsz = '18px 18px'; }
+    else if(rule==='grid'){ bg = `linear-gradient(${rc} 1px, transparent 1px), linear-gradient(90deg, ${rc} 1px, transparent 1px)`; bsz = '20px 20px'; }
+    root.setProperty('--editor-bg', bg);
+    root.setProperty('--editor-bg-size', bsz);
+
+    // Background media mode
+    const url = (p.bg?.url||'').trim();
+    root.setProperty('--bg-image', url ? `url("${url.replace(/"/g,'\\"')}")` : 'none');
+    root.setProperty('--bg-size', p.bg?.size || 'cover');
+    document.body.classList.toggle('bg-image-on', !!url);
+
+    // Chip transparency
+    root.setProperty('--chip-alpha', p.chipsTransparent ? .66 : 1);
+    document.body.classList.toggle('chips-translucent', !!p.chipsTransparent);
+  }
+  function savePrefs(p){ localStorage.setItem(PREFS_KEY, JSON.stringify(p)); }
+
+  /* ---------- Search / Filter (prefix-aware) ---------- */
+  function parseQuery(q){
+    const parts = q.trim().match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+    const res = { tag:[], contains:[], title:[], stack:[], id:[], free:[] };
+    parts.forEach(tok=>{
+      const t = tok.replace(/^"|"$/g,'');
+      const m = t.match(/^(tag|contains|title|stack|id):(.*)$/i);
+      if(m){
+        const k = m[1].toLowerCase(); const v = m[2].trim();
+        if(!v) return; if(Array.isArray(res[k])) res[k].push(v.toLowerCase());
+      }else{ res.free.push(t.toLowerCase()); }
+    });
+    return res;
+  }
+  function matchesQuery(note, qobj){
+    if(qobj.tag.length && !qobj.tag.every(t=> (note.tags||[]).some(x=>x.toLowerCase().includes(t)))) return false;
+    if(qobj.contains.length && !qobj.contains.every(t=> (note.content||'').toLowerCase().includes(t))) return false;
+    if(qobj.title.length && !qobj.title.every(t=> (note.title||'').toLowerCase().includes(t))) return false;
+    if(qobj.stack.length && !qobj.stack.every(t=> (note.stack||'').toLowerCase().includes(t))) return false;
+    if(qobj.id.length){
+      const hid = hierarchicalId(note).toLowerCase();
+      if(!qobj.id.every(t=> hid.startsWith(t))) return false;
+    }
+    if(qobj.free.length){
+      const hay = ((note.title||'')+' '+(note.tags||[]).join(' ')+' '+(note.content||'')).toLowerCase();
+      if(!qobj.free.every(t=> hay.includes(t))) return false;
+    }
+    return true;
+  }
+  function currentQueryMatches(){
+    const q = els.search.value || '';
+    const qobj = parseQuery(q);
+    const empty = !q || Object.values(qobj).every(arr => Array.isArray(arr) ? arr.length===0 : !arr.length);
+    if(empty) return new Set(state.notes.map(n=>n.id));
+    const ids = state.notes.filter(n=> matchesQuery(n,qobj)).map(n=>n.id);
+    return new Set(ids);
+  }
+
+  /* ---------- Export helpers (JSON or ZIP of .md) ---------- */
+  function mdFromNote(n){
+    const t = (Array.isArray(n.tags)? n.tags.join(', '): (n.tags||''));
+    return `---\ntitle: ${n.title}\ncreated: ${n.created}\nmodified: ${n.modified}\nstack: ${n.stack}\ntags: ${t}\n---\n\n${n.content||''}\n`;
+  }
+  function buildZip(files){
+    function crc32(buf){ let c = ~0; for(let i=0;i<buf.length;i++){ c = (c>>>8) ^ table[(c ^ buf[i]) & 0xff]; } return ~c >>> 0; }
+    const table = (function(){ const t=[]; for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1); t[n]=c>>>0; } return t; })();
+    const encoder = new TextEncoder();
+    const chunks = []; const central = []; let offset = 0;
+
+    files.forEach(f=>{
+      const nameBytes = encoder.encode(f.name);
+      const dataBytes = encoder.encode(f.data);
+      const crc = crc32(dataBytes);
+      const size = dataBytes.length;
+      const lh = new Uint8Array(30 + nameBytes.length);
+      const dv = new DataView(lh.buffer);
+      dv.setUint32(0, 0x04034b50, true);
+      dv.setUint16(4, 20, true); dv.setUint16(6, 0, true); dv.setUint16(8, 0, true);
+      dv.setUint16(10, 0, true); dv.setUint16(12, 0, true);
+      dv.setUint32(14, crc, true);
+      dv.setUint32(18, size, true); dv.setUint32(22, size, true);
+      dv.setUint16(26, nameBytes.length, true); dv.setUint16(28, 0, true);
+      lh.set(nameBytes, 30);
+      chunks.push(lh, dataBytes);
+      const localHeaderOffset = offset;
+      offset += lh.length + dataBytes.length;
+
+      const ch = new Uint8Array(46 + nameBytes.length);
+      const cdv = new DataView(ch.buffer);
+      cdv.setUint32(0, 0x02014b50, true);
+      cdv.setUint16(4, 20, true); cdv.setUint16(6, 20, true);
+      cdv.setUint16(8, 0, true); cdv.setUint16(10, 0, true);
+      cdv.setUint16(12, 0, true); cdv.setUint16(14, 0, true);
+      cdv.setUint32(16, crc, true); cdv.setUint32(20, size, true); cdv.setUint32(24, size, true);
+      cdv.setUint16(28, nameBytes.length, true); cdv.setUint16(30, 0, true);
+      cdv.setUint16(32, 0, true); cdv.setUint16(34, 0, true);
+      cdv.setUint16(36, 0, true); cdv.setUint32(38, 0, true);
+      cdv.setUint32(42, localHeaderOffset, true);
+      ch.set(nameBytes, 46);
+      central.push(ch);
+    });
+
+    const centralStart = offset;
+    central.forEach(c => { chunks.push(c); offset += c.length; });
+    const centralSize = offset - centralStart;
+
+    const end = new Uint8Array(22);
+    const edv = new DataView(end.buffer);
+    edv.setUint32(0, 0x06054b50, true);
+    edv.setUint16(4, 0, true); edv.setUint16(6, 0, true);
+    edv.setUint16(8, files.length, true); edv.setUint16(10, files.length, true);
+    edv.setUint32(12, centralSize, true); edv.setUint32(16, centralStart, true);
+    edv.setUint16(20, 0, true);
+    chunks.push(end);
+
+    let total = 0; chunks.forEach(b=> total += b.length);
+    const out = new Uint8Array(total);
+    let off = 0; chunks.forEach(b=>{ out.set(b, off); off += b.length; });
+    return new Blob([out], {type:'application/zip'});
+  }
+
+  /* ---------- UI Refresh ---------- */
+  function populateStackSelector(){
+    els.stackSelector.innerHTML = state.stacks.map(s=> `<option value="${escapeHTML(s)}"${s===state.selectedStack?' selected':''}>${escapeHTML(s)}</option>`).join('');
+    els.stackList.innerHTML = state.stacks.map(s=> `<option value="${escapeHTML(s)}">`).join('');
+  }
+  function switchToStack(stackName){
+    if(!state.stacks.includes(stackName)) return;
+    state.selectedStack = stackName;
+    els.stackSelector.value = stackName;
+    const list = listByStack(stackName);
+    if(list.length) setActiveNote(list[0].id);
+    renderAllStacksBar(); populateStackSelector(); refreshBreadcrumb();
+  }
+
+  function setActiveNote(nid){
+    const n = getNote(nid); if(!n) return;
+    state.currentId = n.id; state.selectedStack = n.stack;
+    els.titleInput.value = n.title;
+    els.stackInput.value = n.stack||'Inbox';
+    els.tagsInput.value = (n.tags||[]).join(', ');
+    els.md.value = n.content||'';
+    els.createdMeta.textContent = fmt(n.created);
+    els.modifiedMeta.textContent = fmt(n.modified);
+    els.frontTitle.value = n.title;
+    els.frontId.textContent = hierarchicalId(n);
+    els.chipStack.textContent = `stack: ${n.stack||'Inbox'}`;
+    els.chipCreated.textContent = `created: ${fmt(n.created)}`;
+    els.chipModified.textContent = `modified: ${fmt(n.modified)}`;
+    els.chipTags.innerHTML = (n.tags||[]).map(t=>`<span class="chip">#${escapeHTML(t)}</span>`).join('') || '<span class="subtle" style="font-size:var(--fs-11)">no tags</span>';
+    populateStackSelector();
+    renderAllStacksBar();
+    refreshBreadcrumb();
+    refreshHierarchy();
+  }
+
+  /* ---------- Bottom bar: ALL stacks, vertical overlay per stack ---------- */
+  function renderAllStacksBar(){
+    els.stacksRow.innerHTML = '';
+    els.stacksRow.classList.add('scroll-minimal');
+
+    const qMatches = currentQueryMatches();
+    const filtering = state.filterMode;
+
+    const CHIP_H = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chip-h')) || 28;
+    const OFFSET = 18;
+
+    state.stacks.forEach(stackName=>{
+      const col = document.createElement('div');
+      col.className = 'stack-col';
+      const list = listByStack(stackName);
+      col.innerHTML = `
+        <div class="shead">
+          <span class="stitle" title="${escapeHTML(stackName)}">${escapeHTML(stackName)}</span>
+          <span class="count">${list.length}</span>
+        </div>
+        <div class="pile scroll-minimal"></div>`;
+      const pile = col.querySelector('.pile');
+      const shead = col.querySelector('.shead');
+      const titleSpan = col.querySelector('.stitle');
+
+      // Double-click column (but not the title span) to switch to stack
+      col.addEventListener('dblclick', (ev)=>{
+        if(ev.target.closest('.stitle')) return; // handled by rename
+        switchToStack(stackName);
+      });
+
+      // Inline rename on double-click of title
+      titleSpan.addEventListener('dblclick', (ev)=>{
+        ev.stopPropagation();
+        if(col.querySelector('.stack-title-input')) return;
+        const oldName = stackName;
+        const input = document.createElement('input');
+        input.className = 'stack-title-input';
+        input.value = oldName;
+        titleSpan.replaceWith(input);
+        input.focus(); input.select();
+
+        function commit(newName){
+          newName = (newName||'').trim();
+          if(!newName || newName===oldName){ cancel(); return; }
+          if(state.stacks.includes(newName)){ alert('A stack with this name already exists.'); cancel(); return; }
+          state.stacks = state.stacks.map(s=> s===oldName ? newName : s);
+          state.notes.forEach(n=>{ if(n.stack===oldName) n.stack = newName; });
+          if(state.selectedStack===oldName) state.selectedStack = newName;
+          saveAll(); populateStackSelector(); renderAllStacksBar(); refreshBreadcrumb();
+        }
+        function cancel(){ input.replaceWith(titleSpan); }
+        input.addEventListener('keydown',(e)=>{
+          if(e.key==='Enter'){ e.preventDefault(); commit(input.value); }
+          if(e.key==='Escape'){ e.preventDefault(); cancel(); }
+        });
+        input.addEventListener('blur', ()=> commit(input.value));
+      });
+
+      // Depth-first order
+      const order = [];
+      function dfs(note, depth){
+        order.push({note, depth});
+        listChildren(note.id).forEach(child=> dfs(child, depth+1));
+      }
+      listTopLevel(stackName).forEach(n=> dfs(n, 0));
+
+      const totalItems = filtering
+        ? order.filter(it => qMatches.has(it.note.id)).length
+        : order.length;
+
+      const sizer = document.createElement('div');
+      sizer.className = 'pile-sizer';
+      sizer.style.height = Math.max(0, (totalItems - 1) * OFFSET + CHIP_H) + 'px';
+      pile.appendChild(sizer);
+
+      let visibleCount = 0;
+      order.forEach((item, i)=>{
+        const note = item.note;
+        const visible = qMatches.has(note.id);
+        if(filtering && !visible) return;
+
+        const chip = document.createElement('div');
+        chip.className = 'note-chip depth-'+Math.min(item.depth,3)+(note.id===state.currentId?' active':'');
+        const topIndex = filtering ? visibleCount : i;
+        chip.style.top = (topIndex * OFFSET) + 'px';
+        chip.innerHTML = `<span class="title" title="${escapeHTML(note.title)}">${escapeHTML(note.title)}</span><span class="hid">${escapeHTML(hierarchicalId(note))}</span>`;
+        chip.addEventListener('click', ()=> setActiveNote(note.id));
+        if(!filtering && !visible) chip.style.opacity='.35';
+        pile.appendChild(chip);
+
+        visibleCount++;
+      });
+
+      function updatePileFades(el){
+        const atTop = el.scrollTop <= 0;
+        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+        el.classList.remove('scrolled-top','scrolled-mid','scrolled-bottom');
+        if(atTop && !atBottom) el.classList.add('scrolled-top');
+        else if(atBottom && !atTop) el.classList.add('scrolled-bottom');
+        else if(!atTop && !atBottom) el.classList.add('scrolled-mid');
+      }
+      pile.addEventListener('scroll', ()=> updatePileFades(pile));
+      queueMicrotask(()=> updatePileFades(pile));
+
+      els.stacksRow.appendChild(col);
+    });
+  }
+
+  function refreshBreadcrumb(){
+    const cur = getNote(state.currentId); if(!cur) return;
+    const parts = (cur.stack||'Inbox').split('/').map(s=>s.trim()).filter(Boolean);
+    els.breadcrumb.innerHTML = '';
+    let path = '';
+    parts.forEach((p,i)=>{
+      path = (i===0)?p:(path+' / '+p);
+      const span = document.createElement('span');
+      span.className = 'crumb'; span.textContent = p;
+      span.addEventListener('click', ()=>{
+        state.selectedStack = path; populateStackSelector(); renderAllStacksBar();
+        const list = listByStack(path); if(list.length) setActiveNote(list[0].id);
+      });
+      els.breadcrumb.appendChild(span);
+    });
+  }
+
+  function extractLinks(text){
+    const wiki = Array.from(text.matchAll(/\[\[([^\]]+?)\]\]/g)).map(m=>m[1].trim()).filter(Boolean);
+    const subs = Array.from(text.matchAll(/(?:>>|&gt;&gt;)\s*([^>]+?)\s*(?:>>|&gt;&gt;)/g)).map(m=>m[1].trim()).filter(Boolean);
+    return { wiki, subs };
+  }
+  function refreshHierarchy(){
+    const cur = getNote(state.currentId); if(!cur) return;
+    const { wiki:outWiki, subs:outSubs } = extractLinks(els.md.value);
+
+    // Inbound: any note that links [[cur.title]] (same stack for disambiguation) + explicit parent
+    const inbound = [];
+    state.notes.forEach(n=>{
+      if(n.id===cur.id) return;
+      if(n.stack!==cur.stack) return;
+      const { wiki } = extractLinks(n.content||'');
+      if(wiki.includes(cur.title)) inbound.push(n);
+    });
+    if(cur.parentId){
+      const parent = getNote(cur.parentId);
+      if(parent && !inbound.find(x=>x.id===parent.id)) inbound.unshift(parent);
+    }
+
+    const children = listChildren(cur.id);
+
+    if(outWiki.length===0 && outSubs.length===0 && inbound.length===0 && children.length===0){
+      els.hierarchy.innerHTML = '<div class="subtle" style="font-size:var(--fs-11)">No links yet.</div>';
+      return;
+    }
+    const linkSpan = (n)=> `<span class="link" data-nid="${n.id}" title="${escapeHTML(n.title)}">${escapeHTML(n.title)}</span>`;
+    const outList = outWiki.map(t=>`<div>• <span class="link" data-title="${escapeHTML(t)}">${escapeHTML(t)}</span></div>`).join('');
+    const subList = outSubs.map(t=>`<div>• <span class="link" data-title="${escapeHTML(t)}">${escapeHTML(t)}</span></div>`).join('');
+    const inList  = inbound.map(n=>`<div>• ${linkSpan(n)} <span style="opacity:.7">(${escapeHTML(n.stack)})</span></div>`).join('');
+    const kidsList= children.map(n=>`<div>• ${linkSpan(n)} <span style="opacity:.7">(subnote)</span></div>`).join('');
+
+    els.hierarchy.innerHTML =
+      (outList? `<div style="margin-bottom:.35rem"><strong>links out</strong></div>${outList}`:'') +
+      (subList? `<div style="margin:.6rem 0 .35rem"><strong>subnotes</strong></div>${subList}`:'') +
+      (inList? `<div style="margin:.6rem 0 .35rem"><strong>links in</strong></div>${inList}`:'') +
+      (kidsList? `<div style="margin:.6rem 0 .35rem"><strong>children</strong></div>${kidsList}`:'');
+  }
+
+  /* ---------- Events ---------- */
+  // Autocomplete for markup
+  els.md.addEventListener('keydown', (e)=>{
+    const ta = els.md; const pos = ta.selectionStart;
+    if(e.key==='['){ e.preventDefault(); insertBetween(ta,pos,'[[',']]'); return; }
+    if(e.key==='>'){ e.preventDefault(); insertBetween(ta,pos,'>>','>>'); return; }
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); handleSave(); }
+  });
+  function insertBetween(ta,pos,left,right){
+    const v = ta.value; ta.value = v.slice(0,pos)+left+right+v.slice(pos);
+    const caret = pos+left.length; ta.selectionStart=ta.selectionEnd=caret; ta.focus();
+  }
+  els.md.addEventListener('input', refreshHierarchy);
+
+  // Hierarchy interactions (open existing or create on same stack)
+  els.hierarchy.addEventListener('click', (e)=>{
+    const nid = e.target.getAttribute('data-nid');
+    if(nid){ setActiveNote(nid); return; }
+    const t = e.target.closest('.link'); if(!t) return;
+    const name = t.getAttribute('data-title');
+    if(!name) return;
+    const cur = getNote(state.currentId);
+    let target = state.notes.find(n=>n.title===name && n.stack===cur.stack && !n.parentId);
+    if(!target){ target = createNote({ title:name, stack:cur.stack }); }
+    setActiveNote(target.id);
+  });
+
+  // Save / duplicate / delete / export (note) / new note / new subnote / stacks
+  els.saveBtn.addEventListener('click', handleSave);
+  function handleSave(){
+    const n = getNote(state.currentId); if(!n) return;
+    const updated = updateNote(n.id, {
+      title: (els.titleInput.value||'Untitled').trim() || 'Untitled',
+      stack: (els.stackInput.value||'Inbox').trim() || 'Inbox',
+      tags: parseTags(els.tagsInput.value),
+      content: els.md.value
+    });
+    els.frontId.textContent = hierarchicalId(updated);
+    els.chipModified.textContent = `modified: ${fmt(updated.modified)}`;
+    flash(els.saveBtn,'Saved');
+    populateStackSelector(); renderAllStacksBar(); refreshBreadcrumb(); refreshHierarchy();
+  }
+  els.duplicateBtn.addEventListener('click', ()=>{ const copy=duplicateNote(state.currentId); setActiveNote(copy.id); });
+
+  function collectSubtreeIds(rootId){
+    const acc = [rootId];
+    (function walk(pid){
+      listChildren(pid).forEach(ch=>{ acc.push(ch.id); walk(ch.id); });
+    })(rootId);
+    return acc;
+  }
+  function deleteNoteCascade(nid){
+    const ids = new Set(collectSubtreeIds(nid));
+    state.notes = state.notes.filter(n=> !ids.has(n.id));
+    saveAll();
+  }
+  els.deleteBtn.addEventListener('click', ()=>{
+    const n = getNote(state.currentId); if(!n) return;
+    if(!confirm('Delete this note and all its subnotes?')) return;
+    const stack = n.stack;
+    deleteNoteCascade(n.id);
+    const fallback = listByStack(stack)[0] || state.notes[0];
+    if(fallback) setActiveNote(fallback.id); else { state.currentId=null; renderAllStacksBar(); }
+  });
+
+  function exportCurrentNote(){
+    const n = getNote(state.currentId); if(!n) return;
+    const blob = new Blob([mdFromNote(n)], {type:'text/markdown'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = safeName(`${n.stack}/${n.title}.md`, true).replace(/\//g,'__');
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
+  els.exportNoteBtn.addEventListener('click', exportCurrentNote);
+
+  function promptStackName(){
+    let name = prompt('New stack name:', 'New Stack');
+    if(!name) return null; name = name.trim(); if(!name) return null;
+    if(state.stacks.includes(name)){ alert('Stack already exists.'); return null; }
+    return name;
+  }
+  function addStackFlow(){
+    const name = promptStackName(); if(!name) return;
+    state.stacks.push(name); stacksUnique(); state.selectedStack = name; saveAll();
+    populateStackSelector(); renderAllStacksBar();
+  }
+  els.addStackBtn.addEventListener('click', addStackFlow);
+  els.newStackBtn.addEventListener('click', addStackFlow);
+
+  els.stackSelector.addEventListener('change', ()=> switchToStack(els.stackSelector.value));
+
+  els.newNoteBtn.addEventListener('click', ()=>{
+    const n = createNote({ stack: state.selectedStack || 'Inbox' });
+    setActiveNote(n.id);
+  });
+  els.newSubBtn.addEventListener('click', ()=>{
+    const cur = getNote(state.currentId);
+    const child = createNote({ stack: cur.stack, parentId: cur.id, title:'New Subnote' });
+    setActiveNote(child.id);
+  });
+
+  // Stack picker popover
+  function buildStackPicker(){
+    els.stackPicker.innerHTML = state.stacks.map(s=> `<div class="menu-item" data-stack="${escapeHTML(s)}">${escapeHTML(s)}</div>`).join('')
+      + `<div class="menu-item" data-new="1">+ New stack…</div>`;
+  }
+  function openStackPicker(anchor){
+    buildStackPicker();
+    const r = anchor.getBoundingClientRect();
+    els.stackPicker.style.left = (r.left) + 'px';
+    els.stackPicker.style.top = (r.bottom + 6 + window.scrollY) + 'px';
+    els.stackPicker.classList.add('open');
+  }
+  function closeStackPicker(){ els.stackPicker.classList.remove('open'); }
+  els.stackPickerBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openStackPicker(e.currentTarget); });
+  document.addEventListener('click', (e)=>{ if(!e.target.closest('.popover') && e.target!==els.stackPickerBtn) closeStackPicker(); });
+  els.stackPicker.addEventListener('click', (e)=>{
+    const item = e.target.closest('.menu-item'); if(!item) return;
+    if(item.dataset.new){
+      const name = promptStackName(); if(!name) return;
+      state.stacks.push(name); stacksUnique(); saveAll();
+      els.stackInput.value = name; populateStackSelector();
+    }else{
+      els.stackInput.value = item.dataset.stack;
+    }
+    closeStackPicker();
+  });
+
+  // Search / Filter / Transparent chips
+  els.filterMode.addEventListener('change', ()=>{ state.filterMode = els.filterMode.checked; renderAllStacksBar(); });
+  els.search.addEventListener('input', ()=>{ renderAllStacksBar(); });
+
+  els.chipTransparent.addEventListener('change', ()=>{
+    const prefs = loadPrefs();
+    prefs.chipsTransparent = !!els.chipTransparent.checked;
+    savePrefs(prefs); applyPrefs(prefs);
+    renderAllStacksBar();
+  });
+
+  /* ---------- Import / Export (notebook) ---------- */
+  function closeModal(m){ m.classList.remove('open'); }
+  function openModal(m){ m.classList.add('open'); }
+
+  els.exportBtn.addEventListener('click', ()=> openModal(els.exportMenu));
+  els.expCancel.addEventListener('click', ()=> closeModal(els.exportMenu));
+  els.expGo.addEventListener('click', ()=>{
+    const fmtSel = document.querySelector('input[name="expfmt"]:checked').value;
+    const scope = document.querySelector('input[name="expscope"]:checked').value;
+    const safe = !!els.expSafe.checked;
+    const stacks = scope==='current' ? [state.selectedStack] : state.stacks.slice();
+    const notes = state.notes.filter(n=> stacks.includes(n.stack));
+    const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    if(fmtSel==='json'){
+      const data = { version: VERSION, exportedAt: nowISO(), stacks, notes };
+      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = safeName(`synapsing_notebook_${scope}_${stamp}.json`, safe);
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    }else{
+      const files = [];
+      notes.forEach(n=>{
+        const safeStack = safeName(n.stack||'Inbox', safe) || 'Inbox';
+        const safeTitle = safeName((n.title||'Untitled').slice(0,64), safe) || 'Untitled';
+        const path = `${safeStack}/${safeTitle}.md`;
+        files.push({ name: path, data: mdFromNote(n) });
+      });
+      const zip = buildZip(files);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(zip);
+      a.download = safeName(`synapsing_markdown_${scope}_${stamp}.zip`, safe);
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    }
+    closeModal(els.exportMenu);
+  });
+
+  els.importBtn.addEventListener('click', ()=> els.importInput.click());
+  els.importInput.addEventListener('change', async ()=>{
+    const file = els.importInput.files[0]; if(!file) return;
+    try{
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if(!Array.isArray(data.notes) || !Array.isArray(data.stacks)) throw new Error('Invalid notebook JSON.');
+      const replace = confirm('Import will REPLACE your current notebook. Continue?');
+      if(!replace) return;
+      state.notes = data.notes.map(n=>({
+        id: n.id || uid(),
+        title: n.title||'Untitled',
+        content: n.content||'',
+        created: n.created || nowISO(),
+        modified: n.modified || n.created || nowISO(),
+        stack: n.stack || 'Inbox',
+        tags: parseTags(n.tags||[]),
+        parentId: n.parentId || null,
+        order: Number.isFinite(n.order)? n.order : 0
+      }));
+      state.stacks = (data.stacks.length? data.stacks : ['Inbox']);
+      stacksUnique(); saveAll();
+      state.selectedStack = state.stacks[0];
+      const first = listByStack(state.selectedStack)[0] || state.notes[0];
+      setActiveNote(first.id);
+      els.importInput.value = '';
+      alert('Import complete.');
+    }catch(err){
+      console.error(err); alert('Import failed: ' + err.message);
+    }
+  });
+
+  /* ---------- Keyboard Shortcuts ---------- */
+  document.addEventListener('keydown', (e)=>{
+    const mod = e.metaKey || e.ctrlKey;
+    if(mod && e.key.toLowerCase()==='s'){ e.preventDefault(); handleSave(); }
+    if(mod && e.key.toLowerCase()==='d'){ e.preventDefault(); const copy=duplicateNote(state.currentId); setActiveNote(copy.id); }
+    if(mod && e.key.toLowerCase()==='e'){ e.preventDefault(); exportCurrentNote(); }
+    if(mod && (e.key==='Backspace' || e.key==='Delete')){ e.preventDefault(); els.deleteBtn.click(); }
+    if(mod && e.key.toLowerCase()==='f'){ e.preventDefault(); els.search.focus(); els.search.select(); }
+    if(mod && e.shiftKey && e.key.toLowerCase()==='f'){ e.preventDefault(); els.filterMode.checked = !els.filterMode.checked; els.filterMode.dispatchEvent(new Event('change')); }
+    if(mod && e.altKey && e.key.toLowerCase()==='t'){ e.preventDefault(); els.chipTransparent.checked = !els.chipTransparent.checked; els.chipTransparent.dispatchEvent(new Event('change')); }
+    if(mod && e.key.toLowerCase()==='n'){ e.preventDefault(); els.newNoteBtn.click(); }
+    if(mod && e.shiftKey && e.key.toLowerCase()==='n'){ e.preventDefault(); els.newSubBtn.click(); }
+  });
+
+  /* ---------- Small utils ---------- */
+  function flash(btn,text){
+    const label = btn.querySelector('.label');
+    const old = label ? label.textContent : btn.textContent;
+    if(label) label.textContent = text; else btn.textContent = text;
+    btn.disabled = true;
+    setTimeout(()=>{
+      if(label) label.textContent = old;
+      else btn.textContent = old;
+      btn.disabled=false;
+    }, 900);
+  }
+
+  /* ---------- Boot ---------- */
+  loadAll();
+  populateStackSelector();
+  const prefs = loadPrefs(); applyPrefs(prefs);
+  els.filterMode.checked = state.filterMode;
+  els.chipTransparent.checked = !!prefs.chipsTransparent;
+  if(!state.currentId && state.notes[0]) state.currentId = state.notes[0].id;
+  setActiveNote(state.currentId);
+
+})();
+</script>
+</body>
+</html>
 
