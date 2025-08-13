@@ -422,6 +422,16 @@ font-size:var(--fs-11); opacity:.7;
             <datalist id="stackList"></datalist>
             <button id="stackPickerBtn" class="btn" title="Pick stack"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">Pick</span></button>
         </label>
+        <label>Parent
+          <input id="parentInput" class="input" placeholder="Top level" readonly/>
+          <button id="parentPickerBtn" class="btn" title="Pick parent">
+            <span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">Pick</span>
+          </button>
+          <button id="clearParentBtn" class="btn" title="Clear parent">
+            <span class="ic"><svg><use xlink:href="#i-trash"/></svg></span><span class="label">Clear</span>
+          </button>
+        </label>
+        <div id="parentPicker" class="popover"></div>
         <label>Tags <input id="tagsInput" class="input" placeholder="comma,separated,tags"/></label>
         <span style="margin-left:auto" class="subtle">Created: <span id="createdMeta">—</span></span>
         <span class="subtle">Modified: <span id="modifiedMeta">—</span></span>
@@ -674,6 +684,15 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     return createNote({ title:n.title+' (copy)', content:n.content, stack:n.stack, tags:n.tags.slice(), parentId:n.parentId });
   }
 
+  let autosaveTimer = null;
+  let isDirty = false;
+  function markDirty(){
+    isDirty = true;
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(()=>{ handleSave(); }, 900); // ~1s debounce
+  }
+
+
   /* ---------- Hierarchical ID ---------- */
   function hierarchicalId(n){
     if(!n) return '—';
@@ -714,7 +733,12 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     stackPickerBtn: id('stackPickerBtn'),
     stackPicker: id('stackPicker'),
     newNotebookBtn: id('newNotebookBtn'),
-    prefReset: id('prefReset')
+    prefReset: id('prefReset'),
+    parentInput: id('parentInput'),
+    parentPickerBtn: id('parentPickerBtn'),
+    clearParentBtn: id('clearParentBtn'),
+    parentPicker: id('parentPicker'),
+
   };
 
   /* ---------- Preferences ---------- */
@@ -1039,6 +1063,15 @@ function readPrefsForm(){
     els.titleInput.value = n.title;
     els.stackInput.value = n.stack||'Inbox';
     els.tagsInput.value = (n.tags||[]).join(', ');
+        // Parent view
+    if(n.parentId){
+      const p = getNote(n.parentId);
+      els.parentInput.value = p ? p.title : '(missing)';
+      els.parentInput.dataset.pid = p ? p.id : '';
+    }else{
+      els.parentInput.value = 'Top level';
+      els.parentInput.dataset.pid = '';
+    }
     els.md.value = n.content||'';
     els.createdMeta.textContent = fmt(n.created);
     els.modifiedMeta.textContent = fmt(n.modified);
@@ -1274,6 +1307,14 @@ function readPrefsForm(){
 
   els.frontTitle.addEventListener('input', ()=>{ els.titleInput.value = els.frontTitle.value; });
 
+  [els.titleInput, els.stackInput, els.tagsInput, els.md].forEach(el=>{
+    el.addEventListener('input', markDirty);
+    el.addEventListener('blur', ()=>{ if(isDirty) handleSave(); });
+  });
+
+  window.addEventListener('beforeunload', ()=>{ if(isDirty) handleSave(); });
+
+
   // Hierarchy interactions
   els.hierarchy.addEventListener('click', (e)=>{
     const nid = e.target.getAttribute('data-nid');
@@ -1290,6 +1331,8 @@ function readPrefsForm(){
   // Save / duplicate / delete / export (note) / new note / new subnote / stacks
   els.saveBtn.addEventListener('click', handleSave);
     function handleSave(){
+    isDirty = false;
+    clearTimeout(autosaveTimer);
     const n = getNote(state.currentId); if(!n) return;
     const updated = updateNote(n.id, {
         title: (els.titleInput.value||'Untitled').trim() || 'Untitled',
@@ -1349,6 +1392,89 @@ function readPrefsForm(){
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
   }
   els.exportNoteBtn.addEventListener('click', exportCurrentNote);
+
+/* ---------- Parent Picker Popover (convert note <-> subnote) ---------- */
+(function(){
+  if(!els.parentPickerBtn || !els.parentPicker) return;
+
+  function getDescendantsSet(rootId){
+    const ids = new Set();
+    (function walk(pid){
+      listChildren(pid).forEach(ch=>{ ids.add(ch.id); walk(ch.id); });
+    })(rootId);
+    return ids;
+  }
+
+  function fillParentPicker(){
+    const cur = getNote(state.currentId); if(!cur) return;
+    const bad = getDescendantsSet(cur.id); // prevent cycles
+    bad.add(cur.id);
+
+    const candidates = listByStack(cur.stack).filter(n => !bad.has(n.id));
+    els.parentPicker.innerHTML = candidates.length
+      ? candidates.map(n=>`<div class="menu-item" data-nid="${n.id}">${escapeHTML(n.title)}</div>`).join('')
+      : '<div class="menu-item" style="opacity:.7;cursor:default">No eligible parents</div>';
+  }
+
+  function openParentPicker(){
+    fillParentPicker();
+    const btn = els.parentPickerBtn;
+    const rect = btn.getBoundingClientRect();
+    els.parentPicker.style.top  = (rect.bottom + window.scrollY + 6) + 'px';
+    els.parentPicker.style.left = (rect.left   + window.scrollX) + 'px';
+    els.parentPicker.classList.add('open');
+    document.addEventListener('click', onDocClick, { once:true });
+  }
+  function closeParentPicker(){ els.parentPicker.classList.remove('open'); }
+  function onDocClick(e){
+    if(e.target.closest('#parentPicker') || e.target.closest('#parentPickerBtn')) {
+      document.addEventListener('click', onDocClick, { once:true });
+      return;
+    }
+    closeParentPicker();
+  }
+
+  els.parentPickerBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    if(els.parentPicker.classList.contains('open')) closeParentPicker();
+    else openParentPicker();
+  });
+
+  els.parentPicker.addEventListener('click', (e)=>{
+    const item = e.target.closest('.menu-item'); if(!item) return;
+    const pid = item.getAttribute('data-nid'); if(!pid) return;
+    const parent = getNote(pid); const cur = getNote(state.currentId); if(!parent || !cur) return;
+
+    // Move into parent's stack if needed, set order as last child
+    const updated = updateNote(cur.id, {
+      parentId: parent.id,
+      stack: parent.stack,
+      order: nextOrderFor(parent.id, parent.stack)
+    });
+    els.parentInput.value = parent.title;
+    els.parentInput.dataset.pid = parent.id;
+
+    // reflect UI
+    populateStackSelector();
+    renderAllStacksBar();
+    refreshBreadcrumb();
+    refreshHierarchy();
+    closeParentPicker();
+  });
+
+  els.clearParentBtn.addEventListener('click', ()=>{
+    const cur = getNote(state.currentId); if(!cur) return;
+    const updated = updateNote(cur.id, {
+      parentId: null,
+      order: nextOrderFor(null, cur.stack)
+    });
+    els.parentInput.value = 'Top level';
+    els.parentInput.dataset.pid = '';
+    renderAllStacksBar();
+    refreshHierarchy();
+  });
+})();
+
 
   function promptStackName(){
     let name = prompt('New stack name:', 'New Stack');
@@ -1513,6 +1639,33 @@ function readPrefsForm(){
     if(mod && e.key.toLowerCase()==='x'){ e.preventDefault(); els.exportBtn.click(); }
   });
 
+
+    // indent/outdent current note (same stack)
+  document.addEventListener('keydown', (e)=>{
+    if(!(e.metaKey||e.ctrlKey)) return;
+    const cur = getNote(state.currentId); if(!cur) return;
+    // Ctrl/Cmd + ] : make child of previous visible note in stack
+    if(e.key === ']' ){
+      const list = listByStack(cur.stack);
+      const idx = list.findIndex(n=>n.id===cur.id);
+      const prev = list[idx-1];
+      if(prev && prev.id !== cur.parentId){
+        e.preventDefault();
+        updateNote(cur.id, { parentId: prev.id, order: nextOrderFor(prev.id, prev.stack) });
+        setActiveNote(cur.id);
+      }
+    }
+    // Ctrl/Cmd + [ : promote to top level
+    if(e.key === '[' ){
+      if(cur.parentId){
+        e.preventDefault();
+        updateNote(cur.id, { parentId:null, order: nextOrderFor(null, cur.stack) });
+        setActiveNote(cur.id);
+      }
+    }
+  });
+
+  
   /* ---------- Small utils ---------- */
   function flash(btn,text){
     const label = btn.querySelector('.label');
