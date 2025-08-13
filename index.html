@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Synaps.ing — Linked Markdown Notebooks</title>
+<title>Synaps.ing - Linked Markdown Notebooks</title>
 <style>
     /* === Design Tokens (no fixed rems except font sizes) === */
     :root{
@@ -1270,7 +1270,7 @@ function readPrefsForm(){
     }
     const linkSpan = (n)=> `<span class="link" data-nid="${n.id}" title="${escapeHTML(n.title)}">${escapeHTML(n.title)}</span>`;
     const outList = outWiki.map(t=>`<div>• <span class="link" data-title="${escapeHTML(t)}">${escapeHTML(t)}</span></div>`).join('');
-    const subList = outSubs.map(t=>`<div>• <span class="link" data-title="${escapeHTML(t)}">${escapeHTML(t)}</span></div>`).join('');
+    const subList = outSubs.map(t=>`<div>• <span class="link" data-title="${escapeHTML(t)}" data-kind="sub">${escapeHTML(t)}</span></div>`).join('');
     const inList  = inbound.map(n=>`<div>• ${linkSpan(n)} <span style="opacity:.7">(${escapeHTML(n.stack)})</span></div>`).join('');
     const kidsList= children.map(n=>`<div>• ${linkSpan(n)} <span style="opacity:.7">(subnote)</span></div>`).join('');
 
@@ -1315,18 +1315,38 @@ function readPrefsForm(){
   window.addEventListener('beforeunload', ()=>{ if(isDirty) handleSave(); });
 
 
-  // Hierarchy interactions
-  els.hierarchy.addEventListener('click', (e)=>{
-    const nid = e.target.getAttribute('data-nid');
-    if(nid){ setActiveNote(nid); return; }
-    const t = e.target.closest('.link'); if(!t) return;
-    const name = t.getAttribute('data-title');
-    if(!name) return;
-    const cur = getNote(state.currentId);
-    let target = state.notes.find(n=>n.title===name && n.stack===cur.stack && !n.parentId);
-    if(!target){ target = createNote({ title:name, stack:cur.stack }); }
-    setActiveNote(target.id);
-  });
+els.hierarchy.addEventListener('click', (e)=>{
+  const nid = e.target.getAttribute('data-nid');
+  if(nid){ setActiveNote(nid); return; }
+
+  const t = e.target.closest('.link'); if(!t) return;
+  const name = t.getAttribute('data-title'); if(!name) return;
+
+  const isSub = t.getAttribute('data-kind') === 'sub';
+  const cur = getNote(state.currentId); if(!cur) return;
+
+  // Find any note with that title in this stack
+  let target = state.notes.find(n=> n.title===name && n.stack===cur.stack);
+
+  if(!target){
+    // Create new note; if it was a >>subnote>>, attach as child
+    target = createNote({
+      title: name,
+      stack: cur.stack,
+      parentId: isSub ? cur.id : null
+    });
+  }else if(isSub && target.parentId !== cur.id){
+    // If it exists but isn't our child, move/attach under current
+    updateNote(target.id, {
+      parentId: cur.id,
+      stack: cur.stack,
+      order: nextOrderFor(cur.id, cur.stack)
+    });
+  }
+
+  setActiveNote(target.id);
+});
+
 
   // Save / duplicate / delete / export (note) / new note / new subnote / stacks
   els.saveBtn.addEventListener('click', handleSave);
@@ -1665,7 +1685,7 @@ function readPrefsForm(){
     }
   });
 
-  
+
   /* ---------- Small utils ---------- */
   function flash(btn,text){
     const label = btn.querySelector('.label');
