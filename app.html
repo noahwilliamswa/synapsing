@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Synaps.ing — Linked Markdown Notebooks</title>
 <style>
-  /* ===== Design Tokens (rem-based typography) ===== */
-  :root{
+    /* === Design Tokens (no fixed rems except font sizes) === */
+    :root{
     /* Palette (overridden by prefs) */
     --paper:#f2eee6; --paper-2:#ebe4d7; --paper-3:#e5dccb;
     --sheet:#fffdfa; --ink:#111; --red:#7a0000; --accent:#b40000;
@@ -16,7 +16,7 @@
     --serif:"Georgia","Times New Roman",serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
 
-    /* Typography (11/13/15/18px) */
+    /* Typography (11/13/15/18px) — rems OK for fonts */
     --fs-11:0.6875rem;
     --fs-13:0.8125rem;
     --fs-15:0.9375rem;
@@ -26,29 +26,46 @@
     --lines: lined;
 
     /* Noise opacity (0–1) */
-    --noise: .08;
+    --noise:.08;
 
     /* Editor ruling color */
-    --rule-color: rgba(122,0,0,.07);
+    --rule-color:rgba(122,0,0,.07);
 
     /* Background media (set by prefs) */
-    --bg-image: none;
-    --bg-size: cover;
+    --bg-image:none;
+    --bg-size:cover;
+
+    /* Rhythm & layout */
+    --pad-x:18px;            /* unified horizontal gutter */
+    --pad-y-topbar:10px;     /* ≈ previous .6rem */
+    --pad-y-md:12px;
+    --pad-y-sm:10px;
 
     /* Columns & chips */
-    --stack-col-h: 190px;
-    --chip-h: 28px;
+    --stack-col-h:190px;
+    --chip-h:28px;
 
-    /* Button metrics */
-    --btn-pad-y: .35rem;
-    --btn-pad-x: .65rem;
-    --btn-gap: .45rem;
-    --btn-ic: 14px;
+    /* Button metrics (px, not rem) */
+    --btn-pad-y:6px;
+    --btn-pad-x:10px;
+    --btn-gap:7px;
+    --btn-ic:14px;
 
-    /* Chip background opacity (toggled by UI) */
-    --chip-rgb: 255,253,248;
-    --chip-alpha: 1; /* 1 = solid, ~0.66 = translucent */
-  }
+    /* Chip background rgba base (paper-ish) */
+    --chip-rgb:255,253,248;
+    --chip-alpha:1; /* toggled by prefs */
+    }
+
+    /* === Unified horizontal gutters (place outside :root) === */
+    .topbar{ padding: var(--pad-y-topbar) var(--pad-x); }
+    .wrap{ padding-left: var(--pad-x); padding-right: var(--pad-x); }
+    .bottom-inner{ padding: var(--pad-y-sm) var(--pad-x); }
+    .titlebar, .meta-row{ padding-left: var(--pad-x); padding-right: var(--pad-x); }
+    textarea#md{ padding-left: var(--pad-x); padding-right: var(--pad-x); }
+
+    /* Dialog “menus” */
+    .dialog{ padding: 14px var(--pad-x); }
+
 
   html,body{height:100%}
   body{
@@ -57,10 +74,10 @@
     -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
     position:relative; z-index:0;
   }
-  /* Ensure universal serif across controls */
+  /* Universal serif across controls */
   input, button, select, textarea { font-family: var(--serif); }
 
-  /* Global background image (pure, full-color) */
+  /* Global background image (pure, full-color overrides grain/paper) */
   body.bg-image-on{
     background: transparent;
   }
@@ -109,8 +126,8 @@
   .topbar{
     position:sticky; top:0; z-index:100;
     display:grid; grid-template-columns:1fr 2fr 1fr; align-items:center;
-    gap:10px; padding:.6rem 1rem; border-bottom:1px solid var(--line);
-    background:linear-gradient(180deg, rgba(241,237,229,.95), rgba(241,237,229,.88));
+    gap:10px; padding: var(--pad-y-topbar) var(--pad-x); border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, color-mix(in oklab, var(--paper) 96%, white), color-mix(in oklab, var(--paper) 88%, white));
     backdrop-filter:saturate(1.05) blur(6px);
   }
   .brand{font-weight:700; letter-spacing:.25px; font-size:var(--fs-18); white-space:nowrap}
@@ -137,7 +154,9 @@
 
   .searchbox{display:flex; justify-content:flex-end; gap:.5rem; align-items:center; min-width:0}
   .searchbox input[type="search"]{
-    min-width: 520px; max-width:100%; flex:1 1 720px;
+    flex: 1 1 28ch;
+    min-width: 20ch;
+    max-width: min(44ch, 60%);
     padding:.45rem .75rem;border-radius:999px;border:1px solid var(--line);background:var(--sheet);outline:none;
     font-size:var(--fs-13)
   }
@@ -148,7 +167,7 @@
   .switch input{accent-color:var(--accent)}
 
   /* ===== Layout ===== */
-  .wrap{max-width:1220px;margin:20px auto calc(240px + 2rem);padding:0 18px;display:grid;grid-template-columns:280px 1fr 280px;gap:18px; position:relative; z-index:2}
+  .wrap{max-width:1300px;margin:20px auto calc(240px + 2rem);padding:0 18px;display:grid;grid-template-columns:280px 1fr 280px;gap:18px; position:relative; z-index:2}
 
   /* ===== Front-side metadata (upper-left) ===== */
   .front-card{
@@ -170,12 +189,13 @@
     overflow:hidden; display:flex; flex-direction:column; min-height:560px;
   }
   .titlebar{
-    display:flex; align-items:center; gap:.6rem; padding:12px 14px; border-bottom:1px solid var(--line);
-    background:linear-gradient(180deg,var(--sheet),rgba(255,253,250,.75));
+    display:flex; align-items:center; gap:.6rem; padding: var(--pad-y-md) var(--pad-x); /* right padding added */
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--sheet),color-mix(in oklab, var(--sheet) 75%, transparent));
   }
   .titlebar input.title{flex:1; font:700 var(--fs-18) var(--serif); border:none; outline:none; background:transparent}
   .meta-row{
-    display:flex; flex-wrap:wrap; gap:.5rem .5rem; align-items:center; padding:8px 14px; border-bottom:1px dashed var(--line); background:var(--sheet);
+    display:flex; flex-wrap:wrap; gap:.5rem .5rem; align-items:center; padding: var(--pad-y-md) var(--pad-x); border-bottom:1px dashed var(--line); background:var(--sheet);
     font-size:var(--fs-13)
   }
   .meta-row label{opacity:.9; display:flex; gap:.4rem; align-items:center}
@@ -183,25 +203,28 @@
   .meta-row input:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(180,0,0,.12)}
   .editor-pane{padding:0; position:relative; flex:1; display:flex; min-height:420px;}
   textarea#md{
-    width:100%; height:100%; border:0; outline:none; resize:none; padding:16px;
+    width:100%; height:100%; border:0; outline:none; resize:none; padding: var(--pad-y-md) var(--pad-x);
     font:var(--fs-15)/1.6 var(--serif);
     background:var(--sheet);
-    /* Ruled background driven by --lines */
     background-image: var(--editor-bg);
     background-size: var(--editor-bg-size, auto);
   }
-  .helper{position:absolute; inset:auto 16px 16px auto; font-size:var(--fs-11); opacity:.7}
+.helper{
+position:absolute;
+inset: auto var(--pad-x) var(--pad-y-md) auto; /* top right bottom left */
+font-size:var(--fs-11); opacity:.7;
+}
+/* Popover menu (stack picker) */
+.popover{
+  position:absolute; z-index:50; background:var(--sheet); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
+  min-width:200px; max-height:220px; overflow:auto; padding:6px; display:none;
+}
+.popover.open{ display:block; }
+.menu-item{
+  padding:.35rem .5rem; border-radius:8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.menu-item:hover{ background:rgba(0,0,0,.05); }
 
-  /* Popover menu (stack picker) */
-  .popover{
-    position:absolute; z-index:50; background:var(--sheet); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
-    min-width:200px; max-height:220px; overflow:auto; padding:6px; display:none;
-  }
-  .popover.open{ display:block; }
-  .menu-item{
-    padding:.35rem .5rem; border-radius:8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
-  .menu-item:hover{ background:rgba(0,0,0,.05); }
 
   /* ===== Right rail ===== */
   .right-rail{display:grid; gap:14px}
@@ -214,14 +237,14 @@
   /* ===== Bottom bar — ALL stacks, each column vertical overlay ===== */
   .bottombar{
     position:fixed; left:0; right:0; bottom:0; z-index:3; border-top:1px solid var(--line);
-    background:linear-gradient(180deg, rgba(241,237,229,.94), rgba(241,237,229,.98));
+    background:linear-gradient(180deg, color-mix(in oklab, var(--paper) 94%, white), color-mix(in oklab, var(--paper) 98%, white));
   }
-  .bottom-inner{max-width:1220px; margin:0 auto; padding:10px 18px}
+  .bottom-inner{max-width:1300px; margin:0 auto; padding:10px 18px}
   .tools-row{display:flex; align-items:center; gap:.5rem; margin-bottom:6px; flex-wrap:wrap}
   .tools-row .hint{font-size:var(--fs-11); opacity:.8; white-space:nowrap}
   .stacks-row{ display:block; overflow-x:auto; padding-bottom:10px; white-space:nowrap; }
 
-  /* Stack columns — sticky header, real vertical scroll, fade hints, theme-aware */
+  /* Stack columns — sticky header, real vertical scroll, fade hints, theme-aware, drop target */
   .stack-col{
     position:relative; display:inline-block; vertical-align:top;
     width:260px; height:var(--stack-col-h); margin-right:18px;
@@ -231,6 +254,8 @@
   }
   .stack-col:nth-child(3n+2){background:var(--paper-3)}
   .stack-col:nth-child(3n+3){background:var(--paper)}
+
+  .stack-col.drop-target{ outline:2px dashed color-mix(in oklab, var(--accent) 55%, transparent); outline-offset:-6px; }
 
   .stack-col .shead{
     position:sticky; top:0; z-index:2;
@@ -277,6 +302,7 @@
   .stack-col .pile.scrolled-bottom::before{ opacity:.35; }
   .pile-sizer{ width:1px; height:0; }
 
+  /* Note chips — transparency reworked: no borders/outline in translucent mode */
   .note-chip{
     position:absolute; left:0; right:0;
     height:var(--chip-h); padding:0 10px; border-radius:10px; border:1px solid var(--line);
@@ -285,19 +311,30 @@
     font-size:var(--fs-13); box-shadow:0 6px 14px rgba(0,0,0,.08);
     cursor:pointer; transition:transform .15s ease, box-shadow .15s ease, left .15s ease, opacity .15s ease;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    user-select:none;
   }
-  body.chips-translucent .note-chip{
-    backdrop-filter: blur(2px) saturate(1.05);
-    border-color: rgba(0,0,0,.2);
-  }
+  .note-chip[draggable="true"]{ cursor:grab; }
+  .note-chip.dragging{ opacity:.6; cursor:grabbing; }
   .note-chip span.title{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:8px; font-weight:600}
   .note-chip span.hid{font-weight:700; opacity:.85}
   .note-chip:hover{transform:translateY(-2px); box-shadow:0 10px 18px rgba(0,0,0,.12)}
-  .note-chip.active{outline:2px solid rgba(180,0,0,.3)}
+  .note-chip.active{outline:2px solid rgba(180,0,0,.18)}
   .depth-0{left:0}
   .depth-1{left:10px}
   .depth-2{left:20px}
   .depth-3{left:30px}
+
+  /* Translucent mode: radically lower alpha, no border/outline/shadow to avoid stacking artifacts */
+  body.chips-translucent .note-chip{
+    background: rgba(255,255,255, .14);
+    border-color: transparent;
+    box-shadow:none;
+  }
+  body.chips-translucent .note-chip.active{
+    outline:none;
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,.22);
+  }
+
   .hidden{display:none}
 
   /* ===== Modal ===== */
@@ -311,6 +348,7 @@
   @media (max-width:1100px){
     .wrap{grid-template-columns:1fr}
     .right-rail{order:3}
+    .searchbox input[type="search"]{ min-width:18ch; }
   }
 </style>
 </head>
@@ -327,7 +365,6 @@
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2m-8 0 1 12h8l1-12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
     <symbol id="i-note-export" viewBox="0 0 24 24"><path d="M6 3h9l3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Zm6 7v8m0-8 3 3m-3-3-3 3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
-    <symbol id="i-caret" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
   </svg>
 
   <header class="topbar">
@@ -344,6 +381,7 @@
       <button id="exportBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-export"/></svg></span><span class="label">Export</span></button>
       <button id="importBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-import"/></svg></span><span class="label">Import</span></button>
       <input id="importInput" type="file" accept="application/json" class="hidden"/>
+      <button id="newNotebookBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">New Notebook</span></button>
       <button id="prefsBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-theme"/></svg></span><span class="label">Theme</span></button>
     </div>
   </header>
@@ -372,23 +410,23 @@
     <!-- BACK SIDE (center — editor only) -->
     <section class="back-card">
       <div class="titlebar">
-        <input id="titleInput" class="title" placeholder="Untitled note" list="stackList"/>
+        <input id="titleInput" class="title" placeholder="Untitled note"/>
         <button class="btn" id="duplicateBtn"><span class="ic"><svg><use xlink:href="#i-dup"/></svg></span><span class="label">Duplicate</span></button>
         <button class="btn" id="exportNoteBtn"><span class="ic"><svg><use xlink:href="#i-note-export"/></svg></span><span class="label">Export</span></button>
         <button class="btn" id="deleteBtn"><span class="ic"><svg><use xlink:href="#i-trash"/></svg></span><span class="label">Delete</span></button>
         <button class="btn primary" id="saveBtn"><span class="ic"><svg><use xlink:href="#i-save"/></svg></span><span class="label">Save</span></button>
       </div>
-      <div class="meta-row" id="metaRow">
+        <div class="meta-row" id="metaRow">
         <label>Stack
-          <input id="stackInput" class="input" placeholder="e.g., Research/Topic" list="stackList"/>
-          <datalist id="stackList"></datalist>
-          <button id="stackPickerBtn" class="btn" title="Pick stack"><span class="ic"><svg><use xlink:href="#i-caret"/></svg></span><span class="label">Pick</span></button>
+            <input id="stackInput" class="input" placeholder="e.g., Research/Topic" list="stackList"/>
+            <datalist id="stackList"></datalist>
+            <button id="stackPickerBtn" class="btn" title="Pick stack"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">Pick</span></button>
         </label>
         <label>Tags <input id="tagsInput" class="input" placeholder="comma,separated,tags"/></label>
         <span style="margin-left:auto" class="subtle">Created: <span id="createdMeta">—</span></span>
         <span class="subtle">Modified: <span id="modifiedMeta">—</span></span>
         <div id="stackPicker" class="popover"></div>
-      </div>
+        </div>
       <div class="editor-pane">
         <textarea id="md" class="scroll-minimal" spellcheck="false" placeholder="# Start writing…
 
@@ -414,7 +452,7 @@ Cmd/Ctrl+F search · Cmd/Ctrl+Shift+F toggle filter · Cmd/Ctrl+Alt+T toggle tra
   <footer class="bottombar">
     <div class="bottom-inner">
       <div class="tools-row">
-        <span class="hint">All stacks shown · Double-click a stack title to rename · Double-click a stack column to focus · Click a card to open</span>
+        <span class="hint">All stacks shown · Double-click a stack title to rename · Double-click a stack column to focus · Drag notes between stacks · Click a card to open</span>
       </div>
       <div class="stacks-row scroll-minimal" id="stacksRow"></div>
     </div>
@@ -463,6 +501,8 @@ Cmd/Ctrl+F search · Cmd/Ctrl+Shift+F toggle filter · Cmd/Ctrl+Alt+T toggle tra
           <option value="cream">Cream</option>
           <option value="warm">Warm</option>
           <option value="cool">Cool</option>
+          <option value="stark">Stark (dark)</option>
+          <option value="wasp">Wasp (dark)</option>
         </select>
       </div>
 
@@ -536,20 +576,21 @@ Cmd/Ctrl+F search · Cmd/Ctrl+Shift+F toggle filter · Cmd/Ctrl+Alt+T toggle tra
       <div class="actions">
         <button class="btn" id="prefCancel"><span class="ic"><svg><use xlink:href="#i-import"/></svg></span><span class="label">Cancel</span></button>
         <button class="btn primary" id="prefSave"><span class="ic"><svg><use xlink:href="#i-save"/></svg></span><span class="label">Save</span></button>
+        <button class="btn" id="prefReset"><span class="ic"><svg><use xlink:href="#i-import"/></svg></span><span class="label">Reset</span></button>
       </div>
     </div>
   </div>
 
 <script>
 /* =========================
-   Synaps.ing — Main Interface (editor-only) with QoL + theming
+   Synaps.ing — Main Interface (editor-only) with styling refinements + drag & drop
    ========================= */
 (function(){
   "use strict";
 
   /* ---------- Storage ---------- */
   const LS_KEY = 'synapsing_notes_v6';
-  const PREFS_KEY = 'synapsing_prefs_v4'; // bumped for bg-mode & chip class
+  const PREFS_KEY = 'synapsing_prefs_v5'; // bumped for chip alpha tweaks
   const VERSION = 6;
   const state = { currentId:null, notes:[], stacks:[], selectedStack:null, filtered:null, filterMode:false };
 
@@ -662,7 +703,6 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     prefBgUrl:id('prefBgUrl'), prefBgSize:id('prefBgSize'), prefBgClear:id('prefBgClear'),
     themeExport:id('themeExport'), themeImport:id('themeImport'), themeImportBtn:id('themeImportBtn'),
     titleInput: id('titleInput'), stackInput: id('stackInput'), tagsInput: id('tagsInput'),
-    stackPickerBtn: id('stackPickerBtn'), stackPicker: id('stackPicker'),
     md: id('md'),
     createdMeta: id('createdMeta'), modifiedMeta: id('modifiedMeta'),
     saveBtn: id('saveBtn'), duplicateBtn: id('duplicateBtn'), deleteBtn:id('deleteBtn'), exportNoteBtn:id('exportNoteBtn'),
@@ -670,7 +710,11 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     frontTitle: id('frontTitle'), frontId: id('frontId'), chipStack: id('chipStack'), chipCreated: id('chipCreated'), chipModified: id('chipModified'), chipTags: id('chipTags'),
     hierarchy: id('hierarchy'),
     stacksRow: id('stacksRow'),
-    stackList: id('stackList')
+    stackList: id('stackList'),
+    stackPickerBtn: id('stackPickerBtn'),
+    stackPicker: id('stackPicker'),
+    newNotebookBtn: id('newNotebookBtn'),
+    prefReset: id('prefReset')
   };
 
   /* ---------- Preferences ---------- */
@@ -691,21 +735,60 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
       parchment: ['#f2eee6','#ebe4d7','#e5dccb'],
       cream: ['#f7f3ea','#efe6d7','#e8decc'],
       warm: ['#f5efe8','#efe2d8','#e5d4c5'],
-      cool: ['#eceff1','#e4eaee','#dde3e8']
+      cool: ['#eceff1','#e4eaee','#dde3e8'],
+      stark: ['#0e1014','#12151b','#171b22'],
+      wasp: ['#0b0b0a','#11110f','#171612']
     };
     const C = tones[p.paper] || tones.parchment;
     const root = document.documentElement.style;
     root.setProperty('--paper', C[0]); root.setProperty('--paper-2', C[1]); root.setProperty('--paper-3', C[2]);
+    const isDark = (p.paper === 'stark' || p.paper === 'wasp');
+    // Card surface + border lines tuned for dark
+    document.documentElement.style.setProperty('--sheet', isDark ? (p.paper==='stark' ? '#0b0d12' : '#0a0907') : '#fffdfa');
+    document.documentElement.style.setProperty('--line',  isDark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.12)');
     root.setProperty('--noise', p.bg?.url ? 0 : (p.noise ?? .08));
     root.setProperty('--serif', p.serif); root.setProperty('--mono', p.mono);
     root.setProperty('--ink', p.colors?.ink || '#111111');
     root.setProperty('--accent', p.colors?.accent || '#b40000');
     root.setProperty('--red', p.colors?.red || '#7a0000');
 
+    // AFTER (drop in this block)
+    const lightDefaults = { ink:'#111111', accent:'#b40000', red:'#7a0000' };
+    const darkSchemes = {
+      stark: { ink:'#e9edf2', accent:'#ff4d4d', red:'#ff6666' },
+      wasp:  { ink:'#f6f5e9', accent:'#ffd400', red:'#ff8a00' }
+    };
+    if(isDark){
+      const scheme = darkSchemes[p.paper];
+      const cur = p.colors || {};
+      const pick = (key, defLight, defDark) => {
+        const v = (cur[key]||'').toLowerCase();
+        // If user left the light default, promote to dark default; otherwise honor their custom color
+        return (!v || v === defLight.toLowerCase()) ? defDark : cur[key];
+      };
+      root.setProperty('--ink',    pick('ink',    lightDefaults.ink,    scheme.ink));
+      root.setProperty('--accent', pick('accent', lightDefaults.accent, scheme.accent));
+      root.setProperty('--red',    pick('red',    lightDefaults.red,    scheme.red));
+    }else{
+      root.setProperty('--ink',    p.colors?.ink    || lightDefaults.ink);
+      root.setProperty('--accent', p.colors?.accent || lightDefaults.accent);
+      root.setProperty('--red',    p.colors?.red    || lightDefaults.red);
+    }
+
     // Font sizing scale
     if(p.font==='sm'){ root.setProperty('--fs-11','0.625rem'); root.setProperty('--fs-13','0.75rem'); root.setProperty('--fs-15','0.875rem'); root.setProperty('--fs-18','1rem'); }
     else if(p.font==='lg'){ root.setProperty('--fs-11','0.75rem'); root.setProperty('--fs-13','0.875rem'); root.setProperty('--fs-15','1rem'); root.setProperty('--fs-18','1.25rem'); }
     else { root.setProperty('--fs-11','0.6875rem'); root.setProperty('--fs-13','0.8125rem'); root.setProperty('--fs-15','0.9375rem'); root.setProperty('--fs-18','1.125rem'); }
+
+    els.prefReset.addEventListener('click', ()=>{
+    localStorage.removeItem(PREFS_KEY);
+    const p = loadPrefs();
+    applyPrefs(p);
+    syncPrefsForm(p);
+    els.chipTransparent.checked = !!p.chipsTransparent;
+    alert('Preferences reset.');
+    });
+
 
     // Editor rule style
     const rule = p.lines || 'unruled';
@@ -723,11 +806,118 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     root.setProperty('--bg-size', p.bg?.size || 'cover');
     document.body.classList.toggle('bg-image-on', !!url);
 
-    // Chip transparency
-    root.setProperty('--chip-alpha', p.chipsTransparent ? .66 : 1);
+    // Chip transparency (stronger)
+    root.setProperty('--chip-alpha', p.chipsTransparent ? .12 : 1);
     document.body.classList.toggle('chips-translucent', !!p.chipsTransparent);
   }
   function savePrefs(p){ localStorage.setItem(PREFS_KEY, JSON.stringify(p)); }
+
+/* ---------- Preferences modal ---------- */
+els.prefsBtn.addEventListener('click', ()=>{
+  const p = loadPrefs();
+  syncPrefsForm(p);
+  document.getElementById('prefsMenu').classList.add('open');
+});
+els.prefCancel.addEventListener('click', ()=> document.getElementById('prefsMenu').classList.remove('open'));
+els.prefSave.addEventListener('click', ()=>{
+  const p = readPrefsForm();
+  savePrefs(p);
+  applyPrefs(p);
+  // keep topbar switch in sync with persisted state
+  els.chipTransparent.checked = !!p.chipsTransparent;
+  document.getElementById('prefsMenu').classList.remove('open');
+});
+
+/* Theme export/import */
+els.themeExport.addEventListener('click', ()=>{
+  const p = loadPrefs();
+  const blob = new Blob([JSON.stringify(p,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'synapsing_theme.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 800);
+});
+els.themeImportBtn.addEventListener('click', ()=> els.themeImport.click());
+els.themeImport.addEventListener('change', async ()=>{
+  const f = els.themeImport.files[0]; if(!f) return;
+  try{
+    const p = JSON.parse(await f.text());
+    // Minimal validation + merge with defaults
+    const merged = Object.assign(loadPrefs(), p || {});
+    savePrefs(merged);
+    applyPrefs(merged);
+    syncPrefsForm(merged);
+    els.chipTransparent.checked = !!merged.chipsTransparent;
+    alert('Theme imported.');
+  }catch(err){ alert('Invalid theme JSON'); }
+  els.themeImport.value = '';
+});
+
+/* Background clear */
+els.prefBgClear.addEventListener('click', ()=>{
+  const p = loadPrefs();
+  p.bg = { url:'', size: 'cover' };
+  savePrefs(p); applyPrefs(p); syncPrefsForm(p);
+});
+
+  function newNotebookFlow(){
+    if(!confirm('Create a new empty notebook? This will REPLACE your current notebook. Continue?')) return;
+    state.notes = [];
+    state.stacks = ['Inbox'];
+    const n = createNote({
+      title:'Welcome',
+      stack:'Inbox',
+      tags:['getting-started'],
+      content:'# New Notebook\n\nStart writing…'
+    }, true);
+    state.currentId = n.id;
+    state.selectedStack = 'Inbox';
+    saveAll();
+    populateStackSelector();
+    renderAllStacksBar();
+    setActiveNote(state.currentId);
+    alert('New notebook created.');
+  }
+  els.newNotebookBtn.addEventListener('click', newNotebookFlow);
+
+
+function syncPrefsForm(p){
+  if(!els.prefsMenu) return;
+  els.prefPaper.value = p.paper || 'parchment';
+  els.prefLines.value = p.lines || 'unruled';
+  els.prefFont.value  = p.font  || 'md';
+  els.prefSerif.value = p.serif || '';
+  els.prefMono.value  = p.mono  || '';
+  els.prefInk.value   = p.colors?.ink    || '#111111';
+  els.prefAccent.value= p.colors?.accent || '#b40000';
+  els.prefRed.value   = p.colors?.red    || '#7a0000';
+  els.prefNoise.value = String(p.noise ?? .08);
+  els.prefBgUrl.value = p.bg?.url || '';
+  els.prefBgSize.value= p.bg?.size || 'cover';
+}
+function readPrefsForm(){
+  return {
+    paper: els.prefPaper.value,
+    lines: els.prefLines.value,
+    font:  els.prefFont.value,
+    serif: els.prefSerif.value || "Georgia, 'Times New Roman', serif",
+    mono:  els.prefMono.value  || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace",
+    noise: Number(els.prefNoise.value || .08),
+    colors:{
+      ink: els.prefInk.value || '#111111',
+      accent: els.prefAccent.value || '#b40000',
+      red: els.prefRed.value || '#7a0000'
+    },
+    bg:{
+      url: (els.prefBgUrl.value||'').trim(),
+      size: els.prefBgSize.value || 'cover'
+    },
+    // chipsTransparent is controlled by the topbar switch; keep persisted:
+    chipsTransparent: !!loadPrefs().chipsTransparent
+  };
+}
+
 
   /* ---------- Search / Filter (prefix-aware) ---------- */
   function parseQuery(q){
@@ -807,7 +997,6 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
       cdv.setUint16(32, 0, true); cdv.setUint16(34, 0, true);
       cdv.setUint16(36, 0, true); cdv.setUint32(38, 0, true);
       cdv.setUint32(42, localHeaderOffset, true);
-      ch.set(nameBytes, 46);
       central.push(ch);
     });
 
@@ -865,7 +1054,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     refreshHierarchy();
   }
 
-  /* ---------- Bottom bar: ALL stacks, vertical overlay per stack ---------- */
+  /* ---------- Bottom bar: ALL stacks, vertical overlay per stack (with Drag & Drop) ---------- */
   function renderAllStacksBar(){
     els.stacksRow.innerHTML = '';
     els.stacksRow.classList.add('scroll-minimal');
@@ -873,12 +1062,14 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     const qMatches = currentQueryMatches();
     const filtering = state.filterMode;
 
+    const prefs = loadPrefs();
     const CHIP_H = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chip-h')) || 28;
-    const OFFSET = 18;
+    const OFFSET = prefs.chipsTransparent ? 24 : 18; // reduce overlap when translucent
 
     state.stacks.forEach(stackName=>{
       const col = document.createElement('div');
       col.className = 'stack-col';
+      col.dataset.stack = stackName;
       const list = listByStack(stackName);
       col.innerHTML = `
         <div class="shead">
@@ -887,19 +1078,17 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
         </div>
         <div class="pile scroll-minimal"></div>`;
       const pile = col.querySelector('.pile');
-      const shead = col.querySelector('.shead');
       const titleSpan = col.querySelector('.stitle');
 
-      // Double-click column (but not the title span) to switch to stack
+      // Double-click column (not on title) to switch to stack
       col.addEventListener('dblclick', (ev)=>{
-        if(ev.target.closest('.stitle')) return; // handled by rename
+        if(ev.target.closest('.stitle')) return;
         switchToStack(stackName);
       });
 
-      // Inline rename on double-click of title
+      // Inline rename on title double-click
       titleSpan.addEventListener('dblclick', (ev)=>{
         ev.stopPropagation();
-        if(col.querySelector('.stack-title-input')) return;
         const oldName = stackName;
         const input = document.createElement('input');
         input.className = 'stack-title-input';
@@ -909,17 +1098,17 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
 
         function commit(newName){
           newName = (newName||'').trim();
-          if(!newName || newName===oldName){ cancel(); return; }
-          if(state.stacks.includes(newName)){ alert('A stack with this name already exists.'); cancel(); return; }
+          if(!newName || newName===oldName){ renderAllStacksBar(); return; }
+          if(state.stacks.includes(newName)){ alert('A stack with this name already exists.'); renderAllStacksBar(); return; }
           state.stacks = state.stacks.map(s=> s===oldName ? newName : s);
           state.notes.forEach(n=>{ if(n.stack===oldName) n.stack = newName; });
           if(state.selectedStack===oldName) state.selectedStack = newName;
-          saveAll(); populateStackSelector(); renderAllStacksBar(); refreshBreadcrumb();
+          saveAll();
+          populateStackSelector(); renderAllStacksBar(); refreshBreadcrumb();
         }
-        function cancel(){ input.replaceWith(titleSpan); }
         input.addEventListener('keydown',(e)=>{
           if(e.key==='Enter'){ e.preventDefault(); commit(input.value); }
-          if(e.key==='Escape'){ e.preventDefault(); cancel(); }
+          if(e.key==='Escape'){ e.preventDefault(); renderAllStacksBar(); }
         });
         input.addEventListener('blur', ()=> commit(input.value));
       });
@@ -949,15 +1138,42 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
 
         const chip = document.createElement('div');
         chip.className = 'note-chip depth-'+Math.min(item.depth,3)+(note.id===state.currentId?' active':'');
+        chip.draggable = true;
+        chip.dataset.nid = note.id;
         const topIndex = filtering ? visibleCount : i;
         chip.style.top = (topIndex * OFFSET) + 'px';
         chip.innerHTML = `<span class="title" title="${escapeHTML(note.title)}">${escapeHTML(note.title)}</span><span class="hid">${escapeHTML(hierarchicalId(note))}</span>`;
         chip.addEventListener('click', ()=> setActiveNote(note.id));
         if(!filtering && !visible) chip.style.opacity='.35';
         pile.appendChild(chip);
-
         visibleCount++;
+
+        // Drag behavior
+        chip.addEventListener('dragstart', (e)=>{
+          chip.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', note.id);
+        });
+        chip.addEventListener('dragend', ()=> chip.classList.remove('dragging'));
       });
+
+      // Column drop target
+      const enter = (e)=>{ e.preventDefault(); col.classList.add('drop-target'); };
+      const over  = (e)=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; };
+      const leave = ()=>{ col.classList.remove('drop-target'); };
+      const drop  = (e)=>{
+        e.preventDefault(); col.classList.remove('drop-target');
+        const nid = e.dataTransfer.getData('text/plain'); if(!nid) return;
+        const note = getNote(nid); if(!note) return;
+        if(note.stack === stackName) return;
+        // Move to new stack; detach from parent hierarchy (new top-level)
+        updateNote(note.id, { stack: stackName, parentId: null, order: nextOrderFor(null, stackName) });
+        setActiveNote(note.id);
+      };
+      col.addEventListener('dragenter', enter);
+      col.addEventListener('dragover', over);
+      col.addEventListener('dragleave', leave);
+      col.addEventListener('drop', drop);
 
       function updatePileFades(el){
         const atTop = el.scrollTop <= 0;
@@ -1046,7 +1262,19 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
   }
   els.md.addEventListener('input', refreshHierarchy);
 
-  // Hierarchy interactions (open existing or create on same stack)
+  // Live reflection
+    [els.titleInput, els.stackInput, els.tagsInput].forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+        els.frontTitle.value = els.titleInput.value;
+        els.chipStack.textContent = `stack: ${els.stackInput.value||'Inbox'}`;
+        const tags = parseTags(els.tagsInput.value);
+        els.chipTags.innerHTML = tags.length ? tags.map(t=>`<span class="chip">#${escapeHTML(t)}</span>`).join('') : '<span class="subtle" style="font-size:var(--fs-11)">no tags</span>';
+    });
+    });
+
+  els.frontTitle.addEventListener('input', ()=>{ els.titleInput.value = els.frontTitle.value; });
+
+  // Hierarchy interactions
   els.hierarchy.addEventListener('click', (e)=>{
     const nid = e.target.getAttribute('data-nid');
     if(nid){ setActiveNote(nid); return; }
@@ -1061,19 +1289,34 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
 
   // Save / duplicate / delete / export (note) / new note / new subnote / stacks
   els.saveBtn.addEventListener('click', handleSave);
-  function handleSave(){
+    function handleSave(){
     const n = getNote(state.currentId); if(!n) return;
     const updated = updateNote(n.id, {
-      title: (els.titleInput.value||'Untitled').trim() || 'Untitled',
-      stack: (els.stackInput.value||'Inbox').trim() || 'Inbox',
-      tags: parseTags(els.tagsInput.value),
-      content: els.md.value
+        title: (els.titleInput.value||'Untitled').trim() || 'Untitled',
+        stack: (els.stackInput.value||'Inbox').trim() || 'Inbox',
+        tags: parseTags(els.tagsInput.value),
+        content: els.md.value
     });
+
+    // Front panel + meta chips
+    els.frontTitle.value = updated.title;
     els.frontId.textContent = hierarchicalId(updated);
+    els.chipStack.textContent = `stack: ${updated.stack||'Inbox'}`;
+    els.chipCreated.textContent = `created: ${fmt(updated.created)}`;
     els.chipModified.textContent = `modified: ${fmt(updated.modified)}`;
+    els.chipTags.innerHTML = (updated.tags||[]).map(t=>`<span class="chip">#${escapeHTML(t)}</span>`).join('') || '<span class="subtle" style="font-size:var(--fs-11)">no tags</span>';
+
+    // Center meta labels
+    els.createdMeta.textContent = fmt(updated.created);
+    els.modifiedMeta.textContent = fmt(updated.modified);
+
     flash(els.saveBtn,'Saved');
-    populateStackSelector(); renderAllStacksBar(); refreshBreadcrumb(); refreshHierarchy();
-  }
+
+    populateStackSelector();
+    renderAllStacksBar();
+    refreshBreadcrumb();
+    refreshHierarchy();
+    }
   els.duplicateBtn.addEventListener('click', ()=>{ const copy=duplicateNote(state.currentId); setActiveNote(copy.id); });
 
   function collectSubtreeIds(rootId){
@@ -1133,33 +1376,6 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     setActiveNote(child.id);
   });
 
-  // Stack picker popover
-  function buildStackPicker(){
-    els.stackPicker.innerHTML = state.stacks.map(s=> `<div class="menu-item" data-stack="${escapeHTML(s)}">${escapeHTML(s)}</div>`).join('')
-      + `<div class="menu-item" data-new="1">+ New stack…</div>`;
-  }
-  function openStackPicker(anchor){
-    buildStackPicker();
-    const r = anchor.getBoundingClientRect();
-    els.stackPicker.style.left = (r.left) + 'px';
-    els.stackPicker.style.top = (r.bottom + 6 + window.scrollY) + 'px';
-    els.stackPicker.classList.add('open');
-  }
-  function closeStackPicker(){ els.stackPicker.classList.remove('open'); }
-  els.stackPickerBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openStackPicker(e.currentTarget); });
-  document.addEventListener('click', (e)=>{ if(!e.target.closest('.popover') && e.target!==els.stackPickerBtn) closeStackPicker(); });
-  els.stackPicker.addEventListener('click', (e)=>{
-    const item = e.target.closest('.menu-item'); if(!item) return;
-    if(item.dataset.new){
-      const name = promptStackName(); if(!name) return;
-      state.stacks.push(name); stacksUnique(); saveAll();
-      els.stackInput.value = name; populateStackSelector();
-    }else{
-      els.stackInput.value = item.dataset.stack;
-    }
-    closeStackPicker();
-  });
-
   // Search / Filter / Transparent chips
   els.filterMode.addEventListener('change', ()=>{ state.filterMode = els.filterMode.checked; renderAllStacksBar(); });
   els.search.addEventListener('input', ()=>{ renderAllStacksBar(); });
@@ -1170,6 +1386,47 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     savePrefs(prefs); applyPrefs(prefs);
     renderAllStacksBar();
   });
+
+/* ---------- Stack Picker Popover ---------- */
+(function(){
+  if(!els.stackPickerBtn || !els.stackPicker) return;
+
+  function fillPicker(){
+    els.stackPicker.innerHTML = state.stacks
+      .map(s=>`<div class="menu-item" data-stack="${escapeHTML(s)}">${escapeHTML(s)}</div>`)
+      .join('');
+  }
+  function openPicker(){
+    fillPicker();
+    const btn = els.stackPickerBtn;
+    const rect = btn.getBoundingClientRect();
+    els.stackPicker.style.top  = (rect.bottom + window.scrollY + 6) + 'px';
+    els.stackPicker.style.left = (rect.left   + window.scrollX) + 'px';
+    els.stackPicker.classList.add('open');
+    document.addEventListener('click', onDocClick, { once:true });
+  }
+  function closePicker(){ els.stackPicker.classList.remove('open'); }
+  function onDocClick(e){
+    if(e.target.closest('#stackPicker') || e.target.closest('#stackPickerBtn')) {
+      document.addEventListener('click', onDocClick, { once:true }); // keep listening until outside click
+      return;
+    }
+    closePicker();
+  }
+  els.stackPickerBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    if(els.stackPicker.classList.contains('open')) closePicker();
+    else openPicker();
+  });
+  els.stackPicker.addEventListener('click', (e)=>{
+    const item = e.target.closest('.menu-item'); if(!item) return;
+    const s = item.getAttribute('data-stack');
+    els.stackInput.value = s;
+    closePicker();
+    els.stackInput.focus();
+  });
+})();
+
 
   /* ---------- Import / Export (notebook) ---------- */
   function closeModal(m){ m.classList.remove('open'); }
@@ -1252,6 +1509,8 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     if(mod && e.altKey && e.key.toLowerCase()==='t'){ e.preventDefault(); els.chipTransparent.checked = !els.chipTransparent.checked; els.chipTransparent.dispatchEvent(new Event('change')); }
     if(mod && e.key.toLowerCase()==='n'){ e.preventDefault(); els.newNoteBtn.click(); }
     if(mod && e.shiftKey && e.key.toLowerCase()==='n'){ e.preventDefault(); els.newSubBtn.click(); }
+    if(mod && e.key.toLowerCase()==='p'){ e.preventDefault(); els.prefsBtn.click(); }
+    if(mod && e.key.toLowerCase()==='x'){ e.preventDefault(); els.exportBtn.click(); }
   });
 
   /* ---------- Small utils ---------- */
@@ -1261,8 +1520,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     if(label) label.textContent = text; else btn.textContent = text;
     btn.disabled = true;
     setTimeout(()=>{
-      if(label) label.textContent = old;
-      else btn.textContent = old;
+      if(label) label.textContent = old; else btn.textContent = old;
       btn.disabled=false;
     }, 900);
   }
@@ -1280,4 +1538,3 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
 </script>
 </body>
 </html>
-
