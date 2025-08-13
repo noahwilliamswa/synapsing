@@ -436,6 +436,7 @@ font-size:var(--fs-11); opacity:.7;
         <span style="margin-left:auto" class="subtle">Created: <span id="createdMeta">—</span></span>
         <span class="subtle">Modified: <span id="modifiedMeta">—</span></span>
         <div id="stackPicker" class="popover"></div>
+        <div id="linkPicker" class="popover"></div>
         </div>
       <div class="editor-pane">
         <textarea id="md" class="scroll-minimal" spellcheck="false" placeholder="# Start writing…
@@ -738,6 +739,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`}, true);
     parentPickerBtn: id('parentPickerBtn'),
     clearParentBtn: id('clearParentBtn'),
     parentPicker: id('parentPicker'),
+    linkPicker: id('linkPicker'),
 
   };
 
@@ -1253,7 +1255,6 @@ function readPrefsForm(){
     const inbound = [];
     state.notes.forEach(n=>{
       if(n.id===cur.id) return;
-      if(n.stack!==cur.stack) return;
       const { wiki } = extractLinks(n.content||'');
       if(wiki.includes(cur.title)) inbound.push(n);
     });
@@ -1314,38 +1315,57 @@ function readPrefsForm(){
 
   window.addEventListener('beforeunload', ()=>{ if(isDirty) handleSave(); });
 
-
 els.hierarchy.addEventListener('click', (e)=>{
   const nid = e.target.getAttribute('data-nid');
   if(nid){ setActiveNote(nid); return; }
 
-  const t = e.target.closest('.link'); if(!t) return;
-  const name = t.getAttribute('data-title'); if(!name) return;
+  const el = e.target.closest('.link'); if(!el) return;
+  const name = el.getAttribute('data-title'); if(!name) return;
 
-  const isSub = t.getAttribute('data-kind') === 'sub';
+  const isSub = el.getAttribute('data-kind') === 'sub';
   const cur = getNote(state.currentId); if(!cur) return;
 
-  // Find any note with that title in this stack
-  let target = state.notes.find(n=> n.title===name && n.stack===cur.stack);
+  // Find candidates across ALL stacks by title
+  const candidates = state.notes.filter(n => n.title === name);
 
-  if(!target){
-    // Create new note; if it was a >>subnote>>, attach as child
-    target = createNote({
+  // Helper: create a new note (optionally child)
+  function createHere(asChild){
+    const nn = createNote({
       title: name,
       stack: cur.stack,
-      parentId: isSub ? cur.id : null
+      parentId: (asChild ? cur.id : null)
     });
-  }else if(isSub && target.parentId !== cur.id){
-    // If it exists but isn't our child, move/attach under current
-    updateNote(target.id, {
-      parentId: cur.id,
-      stack: cur.stack,
-      order: nextOrderFor(cur.id, cur.stack)
-    });
+    setActiveNote(nn.id);
   }
 
-  setActiveNote(target.id);
+  if(candidates.length === 0){
+    // No match anywhere -> create in current stack
+    return createHere(isSub); // same-stack: subnote becomes a real child
+  }
+
+  if(candidates.length === 1){
+    const target = candidates[0];
+    if(isSub){
+      // Cross-stack rule: only parent if in SAME stack; otherwise treat as a plain link
+      if(target.stack === cur.stack && target.parentId !== cur.id){
+        updateNote(target.id, { parentId: cur.id, order: nextOrderFor(cur.id, cur.stack) });
+      }
+    }
+    return setActiveNote(target.id);
+  }
+
+  // Multiple matches across stacks → let the user pick, plus creation options
+  const choiceData = candidates.map(n => ({ id:n.id, title:n.title, stack:n.stack }));
+  const extras = isSub
+    ? [
+        { label:'Create here as child', onClick: ()=> createHere(true) },
+        { label:'Create here (no parent)', onClick: ()=> createHere(false) }
+      ]
+    : [{ label:'Create here (new note)', onClick: ()=> createHere(false) }];
+
+  openLinkPicker(el, choiceData, extras);
 });
+
 
 
   // Save / duplicate / delete / export (note) / new note / new subnote / stacks
@@ -1532,6 +1552,46 @@ els.hierarchy.addEventListener('click', (e)=>{
     savePrefs(prefs); applyPrefs(prefs);
     renderAllStacksBar();
   });
+
+  function openLinkPicker(anchorEl, choices, extras){
+  // choices: [{id,title,stack}], extras: [{label, onClick}]
+  const box = els.linkPicker;
+  const items = [
+    ...choices.map(c => `<div class="menu-item" data-nid="${c.id}">${escapeHTML(c.title)} <span style="opacity:.7">(${escapeHTML(c.stack)})</span></div>`),
+    ...(extras||[]).map((x,i)=> `<div class="menu-item" data-extra="${i}">${escapeHTML(x.label)}</div>`)
+  ];
+  box.innerHTML = items.length ? items.join('') : '<div class="menu-item" style="opacity:.6;cursor:default">No matches</div>';
+
+  const r = anchorEl.getBoundingClientRect();
+  box.style.top  = (r.bottom + window.scrollY + 6) + 'px';
+  box.style.left = (r.left   + window.scrollX) + 'px';
+  box.classList.add('open');
+
+  function onDoc(e){
+    if(e.target.closest('#linkPicker')) return (document.addEventListener('click', onDoc, {once:true}));
+    box.classList.remove('open');
+  }
+  document.addEventListener('click', onDoc, {once:true});
+
+  box.onclick = (e)=>{
+    const extra = e.target.closest('[data-extra]');
+    const pick  = e.target.closest('[data-nid]');
+    if(extra){
+      const i = Number(extra.getAttribute('data-extra'));
+      const act = (extras||[])[i];
+      box.classList.remove('open');
+      if(act && typeof act.onClick==='function') act.onClick();
+      return;
+    }
+    if(pick){
+      const nid = pick.getAttribute('data-nid');
+      box.classList.remove('open');
+      setActiveNote(nid);
+    }
+  };
+}
+
+
 
 /* ---------- Stack Picker Popover ---------- */
 (function(){
