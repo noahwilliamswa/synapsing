@@ -152,6 +152,18 @@
   .switch input{accent-color:var(--accent)}
   .hidden{display:none}
 
+  /* Utilities & link styling */
+    .subtle{ opacity:.75 }
+
+    a{ color: var(--accent); text-decoration: none; }
+    a:hover{ color: var(--red); text-decoration: underline; }
+
+    /* Buttons that are anchors should keep normal ink color */
+    a.btn{ color: var(--ink); text-decoration: none; }
+
+    /* Keep hierarchy link tokens red specifically */
+    .hierarchy .link{ color: var(--red); }
+
   /* ========= Layout ========= */
   .wrap{max-width:1300px;margin:20px auto calc(240px + 2rem);display:grid;grid-template-columns:280px 1fr 280px;gap:18px; position:relative; z-index:2}
 
@@ -349,8 +361,13 @@
     </div>
 
     <a id="downloadApp" class="btn" title="Download this app as a single HTML file">
-      <span class="ic"><svg><use xlink:href="#i-export"/></svg></span>
-      <span class="label">Download synaps.ing</span>
+    <span class="ic"><svg><use xlink:href="#i-export"/></svg></span>
+    <span class="label">Download synaps.ing</span>
+    </a>
+
+    <a class="btn" href="book.html" title="Book Builder">
+    <span class="ic"><svg><use xlink:href="#i-dup"/></svg></span>
+    <span class="label">Book Builder</span>
     </a>
 
     <select id="stackSelector" class="select" title="Current stack"></select>
@@ -678,6 +695,10 @@ Cmd/Ctrl+F search · Cmd/Ctrl+Shift+F toggle filter · Cmd/Ctrl+Alt+T toggle tra
     return createNote({ title:n.title+' (copy)', content:n.content, stack:n.stack, tags:n.tags.slice(), parentId:n.parentId });
   }
 
+  function ensureSaved(){
+    if (isDirty) { handleSave(); }
+  }
+
   /* ---------- Elements ---------- */
   const els = {
     // Top bar
@@ -896,6 +917,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
   }
 
   function switchToStack(stackName){
+    ensureSaved();
     if(!state.stacks.includes(stackName)) return;
     state.selectedStack = stackName;
     populateTopbarStackSelector();
@@ -1310,12 +1332,12 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
     closeModal(els.exportMenu);
   });
 
-  els.importBtn.addEventListener('click', ()=> els.importInput.click());
+  els.importBtn.addEventListener('click', ()=>{
+    ensureSaved();
+    els.importInput.click();
+  });
   els.importInput.addEventListener('change', async ()=>{
     const file = els.importInput.files[0]; if(!file) return;
-    try{
-      const text = await f.text();
-    }catch{}
     try{
       const text = await file.text();
       const data = JSON.parse(text);
@@ -1470,6 +1492,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
 
   // Note creation flows (top-bar stack is the source of truth for New Note)
   function createNewNote(){
+    ensureSaved();
     const cur = getNote(state.currentId);
     const targetStack = state.selectedStack || (cur?.stack || 'Inbox');
 
@@ -1512,6 +1535,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
 
   // Right-rail / topbar actions
   els.newNotebookBtn.addEventListener('click', ()=>{
+    ensureSaved();
     if(!confirm('Create a new empty notebook? This will REPLACE your current notebook. Continue?')) return;
     state.notes = []; state.stacks = ['Inbox'];
     const n = createNote({ title:'Welcome', stack:'Inbox', tags:['getting-started'], content:'# New Notebook\n\nStart writing…' }, true);
@@ -1520,6 +1544,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
     alert('New notebook created.');
   });
   els.newSubBtn.addEventListener('click', ()=>{
+    ensureSaved();
     const cur = getNote(state.currentId); if(!cur) return;
     // Subnote always follows current note's context (stack & parent = current)
     const child = createNote({ stack: cur.stack, parentId: cur.id, title:'New Subnote' });
@@ -1542,7 +1567,10 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
   els.addStackBtn.addEventListener('click', addStackFlow);
   els.newStackBtn.addEventListener('click', addStackFlow);
 
-  els.stackSelector.addEventListener('change', ()=> switchToStack(els.stackSelector.value));
+  els.stackSelector.addEventListener('change', ()=>{
+    ensureSaved();
+    switchToStack(els.stackSelector.value);
+  });
 
   // Search & filter
   els.filterMode.addEventListener('change', ()=>{ state.filterMode = els.filterMode.checked; renderAllStacksBar(); });
