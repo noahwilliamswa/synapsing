@@ -544,8 +544,12 @@ function normalizeInternalLinks(text){
           const article = document.createElement('article');
           article.className='note'; article.id = model.anchorOf.get(n.uid) || ('note-'+n.uid);
           const hn = Math.min(3, depth+1);
-          article.innerHTML = `<h${hn}><span class="ch">${ch}</span>${escapeHTML(n.title)}</h${hn}>
-            <div class="content">${rewriteWikiLinks(mdToHtml(n.content||''), n.stack)}</div>`;
+        /* PATCH 1 START */
+        const src = normalizeInternalLinks(n.content || '');
+        const contentHtml = rewriteWikiLinks(mdToHtml(src), n.stack);
+        article.innerHTML = `<h${hn}><span class="ch">${ch}</span>${escapeHTML(n.title)}</h${hn}>
+                    <div class="content">${contentHtml}</div>`;
+        /* PATCH 1 END */
           pre.appendChild(article);
           const kids = children.get(n.uid)||[]; if(kids.length) renderAll(kids, depth+1);
         });
@@ -629,16 +633,39 @@ function normalizeInternalLinks(text){
     const preview = id('preview').cloneNode(true);
     const dropFirst = preview.querySelector('.toc'); if(dropFirst) dropFirst.remove();
 
+    /* PATCH 2 START: stronger PDF rewrite */
     // For PDF: rewrite [[links]] as static text with chapter + page
     if(!forMeasure && id('toggleRefs').checked){
-      $$('.wikilink', preview).forEach(a=>{
+    // 2.1 Wikilinks (have data-uid)
+    $$('.wikilink', preview).forEach(a=>{
         const uid = a.getAttribute('data-uid');
         const titleText = a.textContent;
-        const ch = model.chapterId.get(uid)||'—';
-        const pg = model.pageOf.get(uid)||'—';
+        const ch = model.chapterId.get(uid) || '—';
+        const pg = model.pageOf.get(uid) || '—';
         a.replaceWith(document.createTextNode(`${titleText} (${ch}, page ${pg})`));
-      });
+    });
+
+    // 2.2 Any remaining <a> whose TEXT matches a note title → static "Title (ch, page)"
+    $$('a', preview).forEach(a=>{
+        if (a.classList.contains('wikilink')) return; // already handled
+        const text = (a.textContent || '').trim().toLowerCase();
+        if (!text) return;
+        const cand = model.titleIndex.get(text);
+        if (cand && cand.length){
+        const target = cand[0];
+        const ch = model.chapterId.get(target.uid) || '—';
+        const pg = model.pageOf.get(target.uid) || '—';
+        a.replaceWith(document.createTextNode(`${target.title} (${ch}, page ${pg})`));
+        }
+    });
+
+    // 2.3 Remove leftover internal hash anchors (keep their text)
+    $$('a[href^="#"]', preview).forEach(a=>{
+        const t = a.textContent || '';
+        a.replaceWith(document.createTextNode(t));
+    });
     }
+    /* PATCH 2 END */
 
     container.appendChild(preview);
     return container;
@@ -697,11 +724,24 @@ function normalizeInternalLinks(text){
 
     const style = document.createElement('style');
     style.textContent = `
-      @page{ size: ${size==='legal'?'Legal': size==='tabloid'?'Tabloid':'Letter'}; margin: ${margins}in; }
-      #compiledForPrint{ line-height:1.55; padding:0; background:#fff !important; }
-      #compiledForPrint .wikilink{ text-decoration:none; color:inherit; border:0 }
-      #compiledForPrint h1, #compiledForPrint h2, #compiledForPrint h3{ page-break-after: avoid; }
-      #compiledForPrint pre, #compiledForPrint blockquote{ page-break-inside: avoid; }
+    @page{ size: ${size==='legal'?'Legal': size==='tabloid'?'Tabloid':'Letter'}; margin: ${margins}in; }
+    #compiledForPrint{ line-height:1.55; padding:0; background:#fff !important; }
+    /* No link chrome in print */
+    #compiledForPrint a,
+    #compiledForPrint a:link,
+    #compiledForPrint a:visited,
+    #compiledForPrint .wikilink{
+        color: inherit !important;
+        text-decoration: none !important;
+        border: 0 !important;
+    }
+    #compiledForPrint .broken{
+        color:#555 !important;
+        border:0 !important;
+        font-style: italic;
+    }
+    #compiledForPrint h1, #compiledForPrint h2, #compiledForPrint h3{ page-break-after: avoid; }
+    #compiledForPrint pre, #compiledForPrint blockquote{ page-break-inside: avoid; }
     `;
     target.appendChild(style);
 
