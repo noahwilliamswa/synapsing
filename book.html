@@ -109,30 +109,39 @@ a.btn:hover, button.btn:hover{ opacity:.9; }
   #printSurface{position:absolute; left:-99999px; top:0; visibility:hidden}
   #compiledForPrint{display:none}
 
-    @media (max-width: 900px){
-    /* Show interstitial on narrow screens */
-    #mobileBlock{ display:flex }
+/* ===== Mobile Guard (blocks small/mobile) ===== */
+.mobile-guard{
+  position:fixed; inset:0; z-index:1000;
+  display:none; align-items:center; justify-content:center;
+  background:linear-gradient(180deg, color-mix(in oklab, var(--paper) 96%, white), color-mix(in oklab, var(--paper) 88%, white));
+  text-align:center; padding:24px;
+}
+.mobile-guard .panel{
+  max-width:560px; width:min(92vw,560px);
+  background:var(--sheet); border:1px solid var(--line);
+  border-radius:var(--radius); box-shadow:var(--shadow);
+  padding:18px;
+}
+.mobile-guard h2{ margin:.25rem 0 .5rem; font-size:var(--fs-20) }
+.mobile-guard p{ margin:.35rem 0; font-size:var(--fs-14) }
+.mobile-guard .links,
+.mobile-guard .btn-row{
+  display:flex; gap:.5rem; justify-content:center; flex-wrap:wrap; margin-top:.75rem;
+}
+.mobile-guard .note{ font-size:var(--fs-12); opacity:.8; margin-top:.5rem; }
+.mobile-guard .muted{ opacity:.7; font-size:var(--fs-12); margin-top:.35rem; }
 
-    /* Hide the app chrome behind it unless user overrides */
-    body:not(.mobile-override) .topbar,
-    body:not(.mobile-override) .wrap {
-        display: none !important;
-    }
-    }
+@media (max-width: 900px){
+  /* show the guard */
+  .mobile-guard{ display:flex; }
+  /* hide the app chrome behind it unless overridden */
+  body:not(.mobile-override) .topbar,
+  body:not(.mobile-override) .wrap { display:none !important; }
+}
+/* allow override */
+body.mobile-override .mobile-guard{ display:none !important; 
+}
 
-    /* If user overrides, hide the interstitial even on mobile */
-    body.mobile-override #mobileBlock{ display:none !important; }
-
-  @media print{
-    /* No texture in output */
-    html, body { background: #fff !important; }
-    body::before{ display:none !important; content:none !important; background:none !important; }
-
-    .topbar, .wrap{display:none !important}
-    #compiledForPrint{display:block !important}
-    *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
-    @page{ /* size & margins injected at runtime */ }
-  }
 </style>
 </head>
 <body>
@@ -832,19 +841,32 @@ function exportMarkdown(){
 
 /* ----- Mobile Guard override ----- */
 (function mobileGuard(){
-  const KEY = 'book_builder_mobile_override';
-  // Apply persisted override on load
-  if (localStorage.getItem(KEY) === '1') {
-    document.body.classList.add('mobile-override');
-  }
-  // Handle the "Let me in anyway" button
+  const KEY = 'synapsing_mobile_override'; // shared with index for consistency
+
+  const apply = () => document.body.classList.add('mobile-override');
+  const clear = () => document.body.classList.remove('mobile-override');
+
+  // Apply persisted choice (permanent or session-only)
+  if (localStorage.getItem(KEY) === '1' || sessionStorage.getItem(KEY) === '1') apply();
+
   document.addEventListener('click', (e)=>{
-    const btn = e.target.closest('#mobileOverrideBtn');
-    if (!btn) return;
-    localStorage.setItem(KEY, '1');
-    document.body.classList.add('mobile-override');
+    if (e.target.closest('#mobileOverrideBtn')) {
+      // Persist across sessions on this device
+      localStorage.setItem(KEY, '1');
+      apply();
+    } else if (e.target.closest('#mobileOnceBtn')) {
+      // Allow for this session only
+      sessionStorage.setItem(KEY, '1');
+      apply();
+    } else if (e.target.closest('#mobileResetBtn')) {
+      // Clear both and re-show guard (if viewport is small)
+      localStorage.removeItem(KEY);
+      sessionStorage.removeItem(KEY);
+      clear();
+    }
   });
 })();
+
 
 
   /* ---------------- Wiring ---------------- */
@@ -904,16 +926,29 @@ function exportMarkdown(){
 
 })();
 </script>
-<div id="mobileBlock" style="display:none;position:fixed;inset:0;background:#fffdfa;z-index:9999;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:var(--serif);">
-  <div>
-    <div style="font-size:1.25rem;margin-bottom:.5rem">Not mobile-friendly (yet)</div>
-    <div style="opacity:.8;margin-bottom:.75rem">Use a desktop browser for the Book Builder.</div>
-    <button class="btn" id="mobileOverrideBtn" title="Ignore and continue">Let me in anyway</button>
-    <div style="opacity:.6;font-size:.9em;margin-top:.5rem">You can clear this choice by clearing site data.</div>
+<!-- ===== Mobile Guard ===== -->
+<div class="mobile-guard" id="mobileGuard" role="dialog" aria-live="polite" aria-label="Mobile notice">
+  <div class="panel">
+    <h2>Best on desktop</h2>
+    <p>Book Builder isn’t mobile-friendly yet. You’ll have a better time on a laptop or desktop.</p>
+
+    <div class="links">
+      <a class="btn" href="https://www.noahwilliamswa.com/systems-models-tools/synapsing" target="_blank" rel="noopener">
+        Project page &amp; updates
+      </a>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" id="mobileOverrideBtn" title="Always allow on this device">Open anyway (unsupported)</button>
+      <button class="btn" id="mobileOnceBtn" title="Allow once">Just this time</button>
+    </div>
+
+    <div class="note">Warning: layout is unoptimized on small screens; features may be hard to use.</div>
+    <div class="muted">
+      Changed your mind?
+      <button class="btn" id="mobileResetBtn" title="Reset mobile choice" style="padding:.1rem .6rem">Reset</button>
+    </div>
   </div>
 </div>
-</body>
-</html>
-
 </body>
 </html>
