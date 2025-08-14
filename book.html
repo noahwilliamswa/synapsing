@@ -626,7 +626,27 @@ function normalizeInternalLinks(text){
     const tocWrap = document.createElement('section');
     tocWrap.innerHTML = `<h2>Contents</h2>`;
     const tocClone = id('tocItems')?.cloneNode(true) || document.createElement('div');
-    tocWrap.appendChild(tocClone);
+    const tocBox = document.createElement('div');
+    tocBox.className = 'toc';
+    tocBox.style.maxWidth = '100%';
+    tocBox.appendChild(tocClone);
+
+    /* INSERT leaders + classes only for print DOM */
+    if (!forMeasure) {
+    (tocClone.querySelectorAll ? tocClone.querySelectorAll('.toc-item') : []).forEach(row => {
+        const spans = row.querySelectorAll('span');
+        if (spans.length >= 2) {
+        spans[0].classList.add('toc-title');
+        spans[1].classList.add('toc-page');
+        const leader = document.createElement('span');
+        leader.className = 'toc-leader';
+        leader.setAttribute('aria-hidden', 'true');
+        row.insertBefore(leader, spans[1]); // title | leader | page
+        }
+    });
+    }
+
+    tocWrap.appendChild(tocBox);
     container.appendChild(tocWrap);
 
     // Content
@@ -726,6 +746,7 @@ function normalizeInternalLinks(text){
     style.textContent = `
     @page{ size: ${size==='legal'?'Legal': size==='tabloid'?'Tabloid':'Letter'}; margin: ${margins}in; }
     #compiledForPrint{ line-height:1.55; padding:0; background:#fff !important; }
+
     /* No link chrome in print */
     #compiledForPrint a,
     #compiledForPrint a:link,
@@ -740,9 +761,45 @@ function normalizeInternalLinks(text){
         border:0 !important;
         font-style: italic;
     }
+
+    /* === TOC with leaders and right-aligned page numbers (print) === */
+    #compiledForPrint .toc .toc-item{
+        display:flex;
+        align-items:flex-end;      /* align baselines on the last line */
+        gap:.6rem;
+        border:0;
+        padding:.12rem 0;
+    }
+    /* Title (wraps) */
+    #compiledForPrint .toc .toc-item .toc-title{
+        flex:0 1 auto;
+        min-width:0;
+        overflow-wrap:anywhere;
+    }
+    /* Leader fills remaining width on the last line */
+    #compiledForPrint .toc .toc-item .toc-leader{
+        flex:1 1 auto;
+        height:0.9em;
+        align-self:center;
+        background: repeating-linear-gradient(
+            to right,
+            currentColor 0 1px,
+            transparent 1px 4px
+        );
+        opacity:.5;
+    }
+    /* Page number column (fixed, right-aligned) */
+    #compiledForPrint .toc .toc-item .toc-page{
+        flex:0 0 auto;
+        min-width:3ch;            /* room for 1–3 digits */
+        text-align:right;
+        margin-left:.4rem;
+    }
+
     #compiledForPrint h1, #compiledForPrint h2, #compiledForPrint h3{ page-break-after: avoid; }
     #compiledForPrint pre, #compiledForPrint blockquote{ page-break-inside: avoid; }
     `;
+
     target.appendChild(style);
 
     target.appendChild(buildBookDOM(false));
