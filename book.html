@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Synaps.ing — Book Builder</title>
+<title>Synaps.ing - Book Builder</title>
 <style>
   /* ========= Design Tokens ========= */
   :root{
@@ -84,11 +84,17 @@
   blockquote{margin: .8rem 0; padding:.5rem 1rem; border-left:3px solid var(--accent); background:rgba(180,0,0,.05); border-radius:8px}
   hr{border:none; border-top:1px dashed var(--line); margin:1rem 0}
   .wikilink{color:var(--accent); text-decoration:none; border-bottom:1px dotted currentColor}
+  a{ color:var(--accent); text-decoration:none; border-bottom:1px dotted currentColor }
+  a:hover{ opacity:.9 }
   .broken{color:#888; font-style:italic; border-bottom:1px dotted #ccc}
 
   /* Hidden pagination surface & print target */
   #printSurface{position:absolute; left:-99999px; top:0; visibility:hidden}
   #compiledForPrint{display:none}
+
+    @media (max-width: 800px){
+    #mobileBlock{ display:flex }
+    }
 
   @media print{
     /* No texture in output */
@@ -106,7 +112,9 @@
 
 <header class="topbar">
   <div class="toprow">
-    <div class="brand"><span class="logo-main">Synaps</span><span class="logo-dot">.ing</span> <span style="opacity:.7">/ Book Builder</span></div>
+    <div class="brand"><span class="logo-main">Synaps</span><span class="logo-dot">.ing</span> <span style="opacity:.7">- Book Builder</span></div>
+    <a class="btn" href="./index.html" title="Back to Notebook">Notebook</a>
+    <button id="btnDownloadSelf" class="btn">Download book builder</button>
     <div class="row" style="margin-left:auto">
       <label class="btn">Import JSON <input id="fileJson" type="file" accept="application/json" style="display:none"></label>
       <label class="btn">Import Markdown (.zip) <input id="fileZip" type="file" accept=".zip,application/zip" style="display:none"></label>
@@ -131,6 +139,7 @@
       <button id="btnPrint" class="btn primary">Export PDF</button>
       <button id="btnExportHtml" class="btn">Export HTML</button>
       <button id="btnExportMd" class="btn">Export Markdown</button>
+      <button id="btnExportJson" class="btn">Export JSON</button>
     </div>
   </div>
 </header>
@@ -624,6 +633,22 @@
     return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || '';
   }
 
+function exportJSON(){
+  const data = {
+    stacks: model.stacks.slice(),
+    notes: model.notes.map(n=>({
+      id: n.uid, title: n.title, content: n.content,
+      stack: n.stack, parentId: n.parentId,
+      order: n.order, created: n.created, modified: n.modified
+    }))
+  };
+  const name = (id('bookTitle').value||'Book').trim() || 'Book';
+  downloadBlob(safeName(name)+'.json', new Blob([JSON.stringify(data,null,2)], {type:'application/json'}));
+}
+const btnJson = id('btnExportJson');
+if (btnJson) btnJson.addEventListener('click', exportJSON);
+
+
 function exportHTML(){
   applyTheme();
   const title = (id('bookTitle').value||'Book').trim() || 'Book';
@@ -653,17 +678,31 @@ function exportHTML(){
   })();
   body += `</ul>\n`;
 
-  // Helpers: content rendering with non-clickable wiki links "Title (1.2.3)"
-  function contentWithStaticLinks(note){
-    // First: produce HTML with standard wiki anchors...
+    function contentWithStaticLinks(note){
+    // First render to HTML with wiki anchors…
     let html = rewriteWikiLinks(mdToHtml(note.content||''), note.stack);
-    // ...then replace those anchors with plain text "Title (1.2.3)"
+
+    // 1) Convert wiki anchors → "Title (1.2.3)"
     html = html.replace(/<a class="wikilink"[^>]*data-uid="([^"]+)"[^>]*>(.*?)<\/a>/g, (_m, uid, inner)=>{
-      const ch = model.chapterId.get(uid)||'—';
-      return `${inner} (${escapeHTML(ch)})`;
+        const ch = model.chapterId.get(uid)||'—';
+        return `${inner} (${escapeHTML(ch)})`;
     });
+
+    // 2) If a normal <a> appears, try to match its text to a note title; if yes, convert to "Title (1.2.3)"
+    html = html.replace(/<a href="[^"]+"[^>]*>(.*?)<\/a>/g, (_m, inner)=>{
+        const key = String(inner||'').trim().toLowerCase();
+        const cand = model.titleIndex.get(key);
+        if(cand && cand.length){
+        const ch = model.chapterId.get(cand[0].uid)||'—';
+        return `${escapeHTML(inner)} (${escapeHTML(ch)})`;
+        }
+        // otherwise leave external links clickable
+        return _m;
+    });
+
     return html;
-  }
+    }
+
 
   // Content (with section anchors for TOC only)
   for(const stack of model.stacks){
@@ -701,63 +740,58 @@ blockquote{margin:.8rem 0;padding:.5rem 1rem;border-left:3px solid ${accent};bac
   downloadBlob(safeName(title)+'.html', new Blob([html], {type:'text/html'}));
 }
 
-// === REPLACE the existing exportMarkdown() with this ===
 function exportMarkdown(){
   const title = (id('bookTitle').value||'Book').trim() || 'Book';
 
-  // Transform helpers: keep everything content-only, and normalize links to [[...]]
+  // Normalize all links to [[...]] (protect code first)
   function normalizeLinksToWiki(text){
     if(!text) return '';
     const blocks=[];
-
-    // Protect fenced code
     text = text.replace(/```[\s\S]*?```/g, m=>{ const k='§§BLOCK'+blocks.length+'§§'; blocks.push(m); return k; });
-    // Protect inline code
     text = text.replace(/`[^`]*`/g, m=>{ const k='§§INL'+blocks.length+'§§'; blocks.push(m); return k; });
 
     // >>Subnote>> → [[Subnote]]
     text = text.replace(/(?:>>|&gt;&gt;)\s*([^>]+?)\s*(?:>>|&gt;&gt;)/g, (_m, t)=> `[[${t.trim()}]]`);
-
-    // Standard markdown links [label](url) → [[label]]
+    // [label](url) → [[label]]
     text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label)=> `[[${label.trim()}]]`);
+    // (Existing [[...]] left as is)
 
-    // (Wiki links [[...]] are left as-is)
-
-    // Restore code blocks / inline
     text = text.replace(/§§INL(\d+)§§/g, (_m, i)=> blocks[Number(i)]);
     text = text.replace(/§§BLOCK(\d+)§§/g, (_m, i)=> blocks[Number(i)]);
     return text;
   }
 
-  let out = ''; // no TOC — content only
-
+  let out = ''; // content only, no headings/TOC
   for(const stack of model.stacks){
     const list = model.byStack.get(stack)||[];
     if(!list.length) continue;
 
-    out += `## ${stack}\n\n`; // keep structure headings (no TOC)
-
+    // preserve hierarchy order, but output only the note bodies
     const children = new Map(); const tops=[];
     list.forEach(n=> children.set(n.uid,[]));
     list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
     const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
     tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
 
-    (function renderAll(nodes, depth){
+    (function walk(nodes){
       nodes.forEach(n=>{
-        const ch  = model.chapterId.get(n.uid)||'—';
-        const hn  = Math.min(6, 2 + depth); // stack=h2, top=h3, etc.
-        out += `${'#'.repeat(hn)} ${ch} ${n.title}\n\n`;
-        out += `${normalizeLinksToWiki(n.content||'')}\n\n`;
-        const kids = children.get(n.uid)||[]; if(kids.length) renderAll(kids, depth+1);
+        if(n.content) out += normalizeLinksToWiki(n.content) + '\n\n';
+        const kids = children.get(n.uid)||[]; if(kids.length) walk(kids);
       });
-    })(tops,1);
+    })(tops);
   }
 
-  downloadBlob(safeName(title)+'.md', new Blob([out], {type:'text/markdown'}));
+  downloadBlob(safeName(title)+'.md', new Blob([out.trim()+"\n"], {type:'text/markdown'}));
 }
 
+
   /* ---------------- Wiring ---------------- */
+  id('btnDownloadSelf').addEventListener('click', ()=>{
+    const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+    downloadBlob('book_builder.html', new Blob([html], {type:'text/html'}));
+  });
+
+
   id('fileJson').addEventListener('change', async ()=>{
     const f = id('fileJson').files[0]; if(!f) return;
     try{ await importJson(f); }
@@ -808,5 +842,11 @@ function exportMarkdown(){
 
 })();
 </script>
+<div id="mobileBlock" style="display:none;position:fixed;inset:0;background:#fffdfa;z-index:9999;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:var(--serif);">
+  <div>
+    <div style="font-size:1.25rem;margin-bottom:.5rem">Sorry, not mobile-friendly.</div>
+    <div style="opacity:.8">I’m too lazy to make this responsive. Get off your phone 😉</div>
+  </div>
+</div>
 </body>
 </html>
