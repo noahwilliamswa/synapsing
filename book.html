@@ -747,8 +747,17 @@ function normalizeInternalLinks(text){
 
     const style = document.createElement('style');
     style.textContent = `
-    @page{ size: ${size==='legal'?'Legal': size==='tabloid'?'Tabloid':'Letter'}; margin: ${margins}in; }
-    #compiledForPrint{ line-height:1.55; padding:0; background:#fff !important; }
+        @page{
+        size: ${size==='legal'?'Legal': size==='tabloid'?'Tabloid':'Letter'};
+        margin: ${margins}in;
+        counter-increment: page;          /* make the page counter advance */
+        }
+        #compiledForPrint{
+        line-height:1.55;
+        padding:0;
+        background:#fff !important;
+        counter-reset: page 0;            /* first printed page shows “1” */
+        }
 
     /* No link chrome in print */
     #compiledForPrint a,
@@ -804,21 +813,26 @@ function normalizeInternalLinks(text){
     if (id('togglePgNums')?.checked){
     style.textContent += `
     /* Our PDF page number (bottom-right), independent of system headers/footers */
-    #compiledForPrint{ --print-margin: ${margins}in; }
+    #compiledForPrint{
+        --print-margin: ${margins}in;
+        --pgno-nudge: 0.06in;                 /* push slightly below the content box */
+    }
     @media print{
         #compiledForPrint ._pgno{
         position: fixed;
-        right: calc(var(--print-margin) - 0.10in);
-        bottom: calc(var(--print-margin) - 0.10in);
-        font-size: 0.9rem;
+        right: var(--print-margin);         /* align with content width (margin-aware) */
+        bottom: calc(var(--print-margin) + var(--pgno-nudge)); /* slightly BELOW that edge */
+        font-size: 0.875rem;
         opacity: .75;
         z-index: 9999;
+        pointer-events: none;
         }
         #compiledForPrint ._pgno::after{
         content: counter(page);
         }
     }`;
     }
+
 
     target.appendChild(style);
 
