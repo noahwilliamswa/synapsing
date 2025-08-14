@@ -440,7 +440,7 @@
       <textarea id="md" class="scroll-minimal" spellcheck="false" placeholder="# Start writing…
 
 • Use [[Note Title]] to link or create (sibling).
-• Use >>Subnote>> to create a subnote (child).
+• Use >>Child>> to create a child. If a note with that title already exists, it stays put and is referenced as a subnote.
 • IDs: stack.note.child.subchild → e.g., 1.233.433
 
 Ctrl/Cmd+S save · Cmd/Ctrl+D duplicate · Cmd/Ctrl+E export note · Cmd/Ctrl+Backspace delete
@@ -452,7 +452,7 @@ Cmd/Ctrl+F search · Cmd/Ctrl+Shift+F toggle filter · Cmd/Ctrl+Alt+T toggle tra
   <!-- Right rail -->
   <aside class="right-rail">
     <div class="blk"><button id="newNoteBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">New Note</span></button></div>
-    <div class="blk"><button id="newSubBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">New Subnote</span></button></div>
+    <div class="blk"><button id="newSubBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">New Child Note</span></button></div>
     <div class="blk"><button id="newStackBtn" class="btn"><span class="ic"><svg><use xlink:href="#i-plus"/></svg></span><span class="label">New Stack</span></button></div>
   </aside>
 </main>
@@ -881,7 +881,7 @@ Cmd/Ctrl+F search · Cmd/Ctrl+Shift+F toggle filter · Cmd/Ctrl+Alt+T toggle tra
         tags:['getting-started'],
         content:`# Welcome
 
-Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
+Link with [[First Idea]] (sibling). Use >>Next Steps>> to create a child if it’s new; if it already exists, it stays where it is and is referenced as a subnote.`
       }, true);
       state.currentId = n.id;
       saveAll();
@@ -1194,7 +1194,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
     const outList = outWiki.map(t=>`<div>• <span class="link" data-title="${escapeHTML(t)}">${escapeHTML(t)}</span></div>`).join('');
     const subList = outSubs.map(t=>`<div>• <span class="link" data-title="${escapeHTML(t)}" data-kind="sub">${escapeHTML(t)}</span></div>`).join('');
     const inList  = inbound.map(n=>`<div>• ${linkSpan(n)} <span style="opacity:.7">(${escapeHTML(n.stack)})</span></div>`).join('');
-    const kidsList= children.map(n=>`<div>• ${linkSpan(n)} <span style="opacity:.7">(subnote)</span></div>`).join('');
+    const kidsList = children.map(n => `<div>• ${linkSpan(n)} <span style="opacity:.7">(child)</span></div>`).join('');
 
     els.hierarchy.innerHTML =
       (outList? `<div style="margin-bottom:.35rem"><strong>links out</strong></div>${outList}`:'') +
@@ -1437,11 +1437,10 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
 
     if(candidates.length === 0){ return createHere(isSub); }
     if(candidates.length === 1){
-      const target = candidates[0];
-      if(isSub && target.stack === cur.stack && target.parentId !== cur.id){
-        updateNote(target.id, { parentId: cur.id, order: nextOrderFor(cur.id, cur.stack) });
-      }
-      return setActiveNote(target.id);
+    const target = candidates[0];
+    // >>…>> semantics: if target exists, treat as subnote (non-owning).
+    // Do NOT change parent/stack; just navigate.
+    return setActiveNote(target.id);
     }
 
     const choiceData = candidates.map(n => ({ id:n.id, title:n.title, stack:n.stack }));
@@ -1512,7 +1511,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
 
   els.deleteBtn.addEventListener('click', ()=>{
     const n = getNote(state.currentId); if(!n) return;
-    if(!confirm('Delete this note and all its subnotes?')) return;
+    if(!confirm('Delete this note and all its child notes?')) return;
     const stack = n.stack;
 
     const ids = (function collect(rootId){
@@ -1547,7 +1546,7 @@ Link with [[First Idea]] (sibling) or create subnote >>Next Steps>>.`
     ensureSaved();
     const cur = getNote(state.currentId); if(!cur) return;
     // Subnote always follows current note's context (stack & parent = current)
-    const child = createNote({ stack: cur.stack, parentId: cur.id, title:'New Subnote' });
+    const child = createNote({ stack: cur.stack, parentId: cur.id, title:'New Child Note' });
     setActiveNote(child.id);
   });
 
