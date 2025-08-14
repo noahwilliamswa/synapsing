@@ -237,6 +237,9 @@ body.mobile-override .mobile-guard{ display:none !important;
           <label class="btn" title="Show generated timestamp and source filename on title page">
             <input id="toggleStamp" type="checkbox" checked> Show timestamp & filename
           </label>
+          <label class="btn" title="Add page numbers (bottom-right) in the PDF only">
+            <input id="togglePgNums" type="checkbox"> PDF page numbers
+        </label>
         </div>
       </div>
 
@@ -797,11 +800,40 @@ function normalizeInternalLinks(text){
     #compiledForPrint pre, #compiledForPrint blockquote{ page-break-inside: avoid; }
     `;
 
+    // If toggle is on, add our page-number footer CSS
+    if (id('togglePgNums')?.checked){
+    style.textContent += `
+    /* Our PDF page number (bottom-right), independent of system headers/footers */
+    #compiledForPrint{ --print-margin: ${margins}in; }
+    @media print{
+        #compiledForPrint ._pgno{
+        position: fixed;
+        right: calc(var(--print-margin) - 0.10in);
+        bottom: calc(var(--print-margin) - 0.10in);
+        font-size: 0.9rem;
+        opacity: .75;
+        z-index: 9999;
+        }
+        #compiledForPrint ._pgno::after{
+        content: counter(page);
+        }
+    }`;
+    }
+
     target.appendChild(style);
+
+    // If toggle is on, add the fixed footer element once;
+    // it will render on every printed page.
+    if (id('togglePgNums')?.checked){
+        const pg = document.createElement('div');
+        pg.className = '_pgno';
+        pg.setAttribute('aria-hidden','true');
+        target.appendChild(pg);
+    }
+
 
     target.appendChild(buildBookDOM(false));
   }
-
 
   /* ---------------- Export: HTML & Markdown (no page numbers in links) ---------------- */
   function htmlEsc(s){ return escapeHTML(s); }
@@ -1045,6 +1077,7 @@ window.addEventListener('afterprint', ()=> {
 
   id('toggleRefs').addEventListener('change', ()=>{/* applied at compile */});
   id('toggleStamp').addEventListener('change', ()=>{/* applied at compile */});
+  id('togglePgNums').addEventListener('change', ()=>{/* applied at compile */});
 
   id('btnRecompute').addEventListener('click', async ()=>{
     await computePageMap(); updateTOC();
