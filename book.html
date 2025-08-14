@@ -142,6 +142,13 @@ a.btn:hover, button.btn:hover{ opacity:.9; }
 body.mobile-override .mobile-guard{ display:none !important; 
 }
 
+/* ===== Print only the compiled book ===== */
+@media print{
+  body.printing > * { display: none !important; }
+  body.printing #compiledForPrint { display: block !important; }
+}
+
+
 </style>
 </head>
 <body>
@@ -264,6 +271,25 @@ body.mobile-override .mobile-guard{ display:none !important;
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
   }
+
+  /* PATCH D START: normalize custom link syntax */
+function normalizeInternalLinks(text){
+  if(!text) return '';
+  const blocks=[];
+  // Protect code fences and inline code
+  text = text.replace(/```[\s\S]*?```/g, m=>{ const k='§§BLOCK'+blocks.length+'§§'; blocks.push(m); return k; });
+  text = text.replace(/`[^`]*`/g, m=>{ const k='§§INL'+blocks.length+'§§'; blocks.push(m); return k; });
+
+  // >>Subnote>> (or HTML-escaped) → [[Subnote]]
+  text = text.replace(/(?:>>|&gt;&gt;)\s*([^>]+?)\s*(?:>>|&gt;&gt;)/g, (_m,t)=> `[[${t.trim()}]]`);
+
+  // Restore code
+  text = text.replace(/§§INL(\d+)§§/g, (_m,i)=> blocks[+i]);
+  text = text.replace(/§§BLOCK(\d+)§§/g, (_m,i)=> blocks[+i]);
+  return text;
+}
+/* PATCH D END */
+
 
   /* === Apply theme + typography === */
   function applyTheme(){
@@ -718,7 +744,10 @@ function exportHTML(){
       const list = model.byStack.get(stack)||[];
       const children = new Map(); const tops=[];
       list.forEach(n=> children.set(n.uid,[]));
-      list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
+      list.forEach(n=>{
+        if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n);
+        else tops.push(n);
+      });
       const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
       tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
       (function walk(nodes){
@@ -733,31 +762,33 @@ function exportHTML(){
   })();
   body += `</ul>\n`;
 
-    function contentWithStaticLinks(note){
-    // First render to HTML with wiki anchors…
-    let html = rewriteWikiLinks(mdToHtml(note.content||''), note.stack);
+  // Render a note's content with static internal links "Title (1.2.3)"
+  function contentWithStaticLinks(note){
+    // Normalize custom ">>Subnote>>" to [[Subnote]] first
+    const source = normalizeInternalLinks(note.content||'');
 
-    // 1) Convert wiki anchors → "Title (1.2.3)"
+    // Render, then resolve [[...]] to anchors
+    let html = rewriteWikiLinks(mdToHtml(source), note.stack);
+
+    // 1) Convert resolved wiki anchors → "Title (1.2.3)"
     html = html.replace(/<a class="wikilink"[^>]*data-uid="([^"]+)"[^>]*>(.*?)<\/a>/g, (_m, uid, inner)=>{
-        const ch = model.chapterId.get(uid)||'—';
-        return `${inner} (${escapeHTML(ch)})`;
+      const ch = model.chapterId.get(uid)||'—';
+      return `${inner} (${escapeHTML(ch)})`;
     });
 
-    // 2) If a normal <a> appears, try to match its text to a note title; if yes, convert to "Title (1.2.3)"
-    html = html.replace(/<a href="[^"]+"[^>]*>(.*?)<\/a>/g, (_m, inner)=>{
-        const key = String(inner||'').trim().toLowerCase();
-        const cand = model.titleIndex.get(key);
-        if(cand && cand.length){
+    // 2) If a normal <a> text exactly matches a note title, swap to "Title (1.2.3)"; else keep link clickable
+    html = html.replace(/<a href="([^"]+)"[^>]*>(.*?)<\/a>/g, (_m, href, text)=>{
+      const key = String(text||'').trim().toLowerCase();
+      const cand = model.titleIndex.get(key);
+      if(cand && cand.length){
         const ch = model.chapterId.get(cand[0].uid)||'—';
-        return `${escapeHTML(inner)} (${escapeHTML(ch)})`;
-        }
-        // otherwise leave external links clickable
-        return _m;
+        return `${escapeHTML(text)} (${escapeHTML(ch)})`;
+      }
+      return `<a href="${escapeHTML(href)}">${escapeHTML(text)}</a>`;
     });
 
     return html;
-    }
-
+  }
 
   // Content (with section anchors for TOC only)
   for(const stack of model.stacks){
@@ -767,7 +798,10 @@ function exportHTML(){
 
     const children = new Map(); const tops=[];
     list.forEach(n=> children.set(n.uid,[]));
-    list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
+    list.forEach(n=>{
+      if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n);
+      else tops.push(n);
+    });
     const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
     tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
 
@@ -795,49 +829,62 @@ blockquote{margin:.8rem 0;padding:.5rem 1rem;border-left:3px solid ${accent};bac
   downloadBlob(safeName(title)+'.html', new Blob([html], {type:'text/html'}));
 }
 
+
+/* PATCH F START: Obsidian-friendly Markdown export */
 function exportMarkdown(){
   const title = (id('bookTitle').value||'Book').trim() || 'Book';
 
-  // Normalize all links to [[...]] (protect code first)
+  // Normalize all internal links to [[...]] (protect code first)
   function normalizeLinksToWiki(text){
     if(!text) return '';
     const blocks=[];
     text = text.replace(/```[\s\S]*?```/g, m=>{ const k='§§BLOCK'+blocks.length+'§§'; blocks.push(m); return k; });
     text = text.replace(/`[^`]*`/g, m=>{ const k='§§INL'+blocks.length+'§§'; blocks.push(m); return k; });
-
-    // >>Subnote>> → [[Subnote]]
-    text = text.replace(/(?:>>|&gt;&gt;)\s*([^>]+?)\s*(?:>>|&gt;&gt;)/g, (_m, t)=> `[[${t.trim()}]]`);
-    // [label](url) → [[label]]
+    // >>Subnote>> or &gt;&gt;Subnote&gt;&gt; → [[Subnote]]
+    text = text.replace(/(?:>>|&gt;&gt;)\s*([^>]+?)\s*(?:>>|&gt;&gt;)/g, (_m,t)=> `[[${t.trim()}]]`);
+    // [label](url) → [[label]]   (per spec: wrap all link types)
     text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label)=> `[[${label.trim()}]]`);
-    // (Existing [[...]] left as is)
-
-    text = text.replace(/§§INL(\d+)§§/g, (_m, i)=> blocks[Number(i)]);
-    text = text.replace(/§§BLOCK(\d+)§§/g, (_m, i)=> blocks[Number(i)]);
+    // Existing [[...]] left as-is
+    text = text.replace(/§§INL(\d+)§§/g, (_m,i)=> blocks[+i]);
+    text = text.replace(/§§BLOCK(\d+)§§/g, (_m,i)=> blocks[+i]);
     return text;
   }
 
-  let out = ''; // content only, no headings/TOC
+  let out = ''; // content with headings (no separate TOC)
+
   for(const stack of model.stacks){
     const list = model.byStack.get(stack)||[];
     if(!list.length) continue;
 
-    // preserve hierarchy order, but output only the note bodies
+    // Stack heading
+    out += `# ${stack}\n\n`;
+
+    // Hierarchy walk
     const children = new Map(); const tops=[];
     list.forEach(n=> children.set(n.uid,[]));
-    list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
+    list.forEach(n=>{
+      if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n);
+      else tops.push(n);
+    });
     const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
     tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
 
-    (function walk(nodes){
+    (function walk(nodes, depth){
       nodes.forEach(n=>{
-        if(n.content) out += normalizeLinksToWiki(n.content) + '\n\n';
-        const kids = children.get(n.uid)||[]; if(kids.length) walk(kids);
+        const ch = model.chapterId.get(n.uid)||'—';
+        const level = Math.min(6, 1 + depth); // top note depth=1 → '##'
+        out += `${'#'.repeat(level)} ${ch} ${n.title}\n\n`;
+        if(n.content) out += normalizeLinksToWiki(n.content).trim() + '\n\n';
+        const kids = children.get(n.uid)||[];
+        if(kids.length) walk(kids, depth+1);
       });
-    })(tops);
+    })(tops, 1);
   }
 
   downloadBlob(safeName(title)+'.md', new Blob([out.trim()+"\n"], {type:'text/markdown'}));
 }
+/* PATCH F END */
+
 
 /* ----- Mobile Guard override ----- */
 (function mobileGuard(){
@@ -867,6 +914,14 @@ function exportMarkdown(){
   });
 })();
 
+
+/* Print class toggles so only #compiledForPrint is visible on paper */
+window.addEventListener('beforeprint', ()=> document.body.classList.add('printing'));
+window.addEventListener('afterprint', ()=> {
+  document.body.classList.remove('printing');
+  const c = document.getElementById('compiledForPrint');
+  if (c) c.style.display = 'none';
+});
 
 
   /* ---------------- Wiring ---------------- */
@@ -901,13 +956,24 @@ function exportMarkdown(){
     await computePageMap(); updateTOC();
   });
 
-  id('btnPrint').addEventListener('click', async ()=>{
-    await computePageMap(); updateTOC();
-    await computePageMap(); updateTOC();
-    compileForPrint();
+id('btnPrint').addEventListener('click', async ()=>{
+  await computePageMap(); updateTOC();
+  await computePageMap(); updateTOC();
+  compileForPrint();
+
+  // Hide app chrome before print snapshot
+  document.body.classList.add('printing');
+
+  // Give the DOM a tick, then print
+  requestAnimationFrame(()=>{
     window.print();
-    setTimeout(()=>{ id('compiledForPrint').style.display='none'; }, 1000);
+    // Cleanup even if afterprint doesn't fire
+    setTimeout(()=>{
+      document.body.classList.remove('printing');
+      id('compiledForPrint').style.display='none';
+    }, 500);
   });
+});
 
   id('btnExportHtml').addEventListener('click', ()=>{
     exportHTML();
