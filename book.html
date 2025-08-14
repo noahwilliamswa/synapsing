@@ -109,9 +109,19 @@ a.btn:hover, button.btn:hover{ opacity:.9; }
   #printSurface{position:absolute; left:-99999px; top:0; visibility:hidden}
   #compiledForPrint{display:none}
 
-    @media (max-width: 800px){
+    @media (max-width: 900px){
+    /* Show interstitial on narrow screens */
     #mobileBlock{ display:flex }
+
+    /* Hide the app chrome behind it unless user overrides */
+    body:not(.mobile-override) .topbar,
+    body:not(.mobile-override) .wrap {
+        display: none !important;
     }
+    }
+
+    /* If user overrides, hide the interstitial even on mobile */
+    body.mobile-override #mobileBlock{ display:none !important; }
 
   @media print{
     /* No texture in output */
@@ -820,6 +830,22 @@ function exportMarkdown(){
   downloadBlob(safeName(title)+'.md', new Blob([out.trim()+"\n"], {type:'text/markdown'}));
 }
 
+/* ----- Mobile Guard override ----- */
+(function mobileGuard(){
+  const KEY = 'book_builder_mobile_override';
+  // Apply persisted override on load
+  if (localStorage.getItem(KEY) === '1') {
+    document.body.classList.add('mobile-override');
+  }
+  // Handle the "Let me in anyway" button
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('#mobileOverrideBtn');
+    if (!btn) return;
+    localStorage.setItem(KEY, '1');
+    document.body.classList.add('mobile-override');
+  });
+})();
+
 
   /* ---------------- Wiring ---------------- */
   id('btnDownloadSelf').addEventListener('click', ()=>{
@@ -880,9 +906,14 @@ function exportMarkdown(){
 </script>
 <div id="mobileBlock" style="display:none;position:fixed;inset:0;background:#fffdfa;z-index:9999;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:var(--serif);">
   <div>
-    <div style="font-size:1.25rem;margin-bottom:.5rem">Sorry, not mobile-friendly.</div>
-    <div style="opacity:.8">I’m too lazy to make this responsive. Get off your phone 😉</div>
+    <div style="font-size:1.25rem;margin-bottom:.5rem">Not mobile-friendly (yet)</div>
+    <div style="opacity:.8;margin-bottom:.75rem">Use a desktop browser for the Book Builder.</div>
+    <button class="btn" id="mobileOverrideBtn" title="Ignore and continue">Let me in anyway</button>
+    <div style="opacity:.6;font-size:.9em;margin-top:.5rem">You can clear this choice by clearing site data.</div>
   </div>
 </div>
+</body>
+</html>
+
 </body>
 </html>
