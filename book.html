@@ -113,8 +113,14 @@
 <header class="topbar">
   <div class="toprow">
     <div class="brand"><span class="logo-main">Synaps</span><span class="logo-dot">.ing</span> <span style="opacity:.7">- Book Builder</span></div>
-    <a class="btn" href="./index.html" title="Back to Notebook">Notebook</a>
-    <button id="btnDownloadSelf" class="btn">Download book builder</button>
+    <a class="btn" href="./index.html" title="Back to Notebook">
+    <span class="ic"><svg><use xlink:href="#i-dup"/></svg></span>
+    <span class="label">Notebook</span>
+    </a>
+    <button id="btnDownloadSelf" class="btn" title="Download this builder as a single HTML file">
+    <span class="ic"><svg><use xlink:href="#i-export"/></svg></span>
+    <span class="label">Download book builder</span>
+    </button>
     <div class="row" style="margin-left:auto">
       <label class="btn">Import JSON <input id="fileJson" type="file" accept="application/json" style="display:none"></label>
       <label class="btn">Import Markdown (.zip) <input id="fileZip" type="file" accept=".zip,application/zip" style="display:none"></label>
@@ -130,8 +136,8 @@
         <option value="1.0">1.0 inch</option>
       </select>
       <select id="baseFont" class="select" title="Base font">
-        <option value="11">11 pt</option>
-        <option value="12" selected>12 pt</option>
+        <option value="11" selected>11 pt</option>
+        <option value="12">12 pt</option>
         <option value="13">13 pt</option>
       </select>
 
