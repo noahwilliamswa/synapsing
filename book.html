@@ -750,13 +750,11 @@ function normalizeInternalLinks(text){
         @page{
         size: ${size==='legal'?'Legal': size==='tabloid'?'Tabloid':'Letter'};
         margin: ${margins}in;
-        counter-increment: page;          /* make the page counter advance */
         }
         #compiledForPrint{
         line-height:1.55;
         padding:0;
         background:#fff !important;
-        counter-reset: page 0;            /* first printed page shows “1” */
         }
 
     /* No link chrome in print */
@@ -815,13 +813,13 @@ function normalizeInternalLinks(text){
     /* Our PDF page number (bottom-right), independent of system headers/footers */
     #compiledForPrint{
         --print-margin: ${margins}in;
-        --pgno-nudge: 0.06in;                 /* push slightly below the content box */
+        --pgno-nudge: 0.08in;                 /* push slightly below the content box */
     }
     @media print{
         #compiledForPrint ._pgno{
         position: fixed;
         right: var(--print-margin);         /* align with content width (margin-aware) */
-        bottom: calc(var(--print-margin) + var(--pgno-nudge)); /* slightly BELOW that edge */
+        bottom: calc(var(--print-margin) - var(--pgno-nudge));
         font-size: 0.875rem;
         opacity: .75;
         z-index: 9999;
