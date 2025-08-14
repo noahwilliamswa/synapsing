@@ -86,6 +86,25 @@
   .wikilink{color:var(--accent); text-decoration:none; border-bottom:1px dotted currentColor}
   .broken{color:#888; font-style:italic; border-bottom:1px dotted #ccc}
 
+  /* ===== Accent-styled links ===== */
+a:not(.btn),
+a:not(.btn):visited{
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+
+a:not(.btn):hover{
+  color: color-mix(in oklab, var(--accent) 85%, black);
+  border-bottom-style: solid;
+}
+
+a:focus-visible{
+  outline: 2px solid color-mix(in oklab, var(--accent) 55%, white);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
   /* Hidden pagination surface & print target */
   #printSurface{position:absolute; left:-99999px; top:0; visibility:hidden}
   #compiledForPrint{display:none}
