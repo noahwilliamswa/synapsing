@@ -1,1 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Synaps.ing — Book Builder</title>
+<style>
+  /* ========= Design Tokens ========= */
+  :root{
+    --paper:#f2eee6; --paper-2:#ebe4d7; --paper-3:#e5dccb;
+    --sheet:#fffdfa; --ink:#111; --accent:#b40000; --red:#7a0000;
+    --line:rgba(0,0,0,.12); --shadow:0 10px 30px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.06);
+    --radius:16px; --serif:"Georgia","Times New Roman",serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+    --noise:.08; --pad:18px;
+    --fs-12:0.75rem; --fs-14:0.875rem; --fs-16:1rem; --fs-20:1.25rem; --fs-24:1.5rem; --fs-28:1.75rem;
+  }
 
+  html,body{height:100%}
+  body{
+    margin:0; color:var(--ink); font-family:var(--serif); background:var(--paper);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    position:relative; /* for ::before */
+  }
+  /* Grain BEHIND all UI */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:-1;
+    background-image:
+      radial-gradient(rgba(0,0,0,var(--noise)) 1px, transparent 1px),
+      url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAYAAAB1Gk9kAAAAdElEQVR4nO2WsQkCMQwDPc6c8C5woaYwXwS2d8yqCq1rj+f4+o2y0qY6nJrjS/8B8QyqHq7WZsR8fT3h9c4hF0+qM4JQ6sI+8d7b2rT7l5fQ0VtQy8sH0Zl7U0o0hCj+Y9h0l3A7d0fQ1v8h5q0j6g0rWcQm6e+5kLw/C7H8c4sH1Fz3q9L5k1pD9W8Q7S0oHkqM7V1vHcQ5Y5nVvQw==');
+    background-size: 6px 6px, 128px 32px; mix-blend-mode:multiply; opacity:1;
+  }
+
+  /* Topbar */
+  .topbar{position:sticky; top:0; z-index:5; background:linear-gradient(180deg, color-mix(in oklab, var(--paper) 96%, white), color-mix(in oklab, var(--paper) 88%, white)); border-bottom:1px solid var(--line); backdrop-filter:saturate(1.05) blur(6px);}
+  .toprow{display:flex; align-items:center; gap:.6rem; padding:10px var(--pad)}
+  .brand{font-weight:700; font-size:var(--fs-20)}
+  .logo-main{color:#000} .logo-dot{color:var(--accent)}
+  .btn, .select, .input{font:400 var(--fs-14) var(--serif); border:1px solid var(--line); border-radius:10px; background:var(--sheet); padding:.45rem .7rem; cursor:pointer}
+  .btn{display:inline-flex; align-items:center; gap:.45rem}
+  .btn.primary{border-color:var(--accent)}
+
+  /* Layout */
+  .wrap{display:grid; grid-template-columns: 360px 1fr; gap:16px; padding:16px var(--pad); max-width:1300px; margin:0 auto; position:relative; z-index:1}
+  .panel{background:var(--sheet); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow)}
+  .panel h3{margin:0; padding:12px 14px; border-bottom:1px dashed var(--line); font-size:var(--fs-16)}
+  .panel .body{padding:12px 14px}
+
+  .stack-item{display:grid; grid-template-columns: 1fr auto; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--sheet); margin-bottom:8px}
+  .stack-item .name{font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .stack-item .count{opacity:.75; font-size:var(--fs-12)}
+  .stack-item .controls{display:flex; gap:.35rem}
+  .stack-item .controls .btn{padding:.25rem .5rem}
+
+  .section{margin-top:14px; padding-top:10px; border-top:1px dashed var(--line)}
+  .row{display:flex; gap:.6rem; flex-wrap:wrap; align-items:center}
+
+  /* Settings layout polish */
+  label.input{display:flex; gap:.5rem; align-items:center; padding:.35rem .55rem; border-radius:10px; background:var(--sheet)}
+  label.input input{border:none; outline:none; background:transparent; min-width:18ch}
+  label.btn input{margin-right:.5rem}
+  .section .row + .row{ margin-top: .75rem; } /* spacing fix */
+
+  .warn{background:#fff6f6; border:1px solid #f1cccc; color:#6b0000; border-radius:10px; padding:8px 10px; font-size:var(--fs-14); margin-top:10px}
+  .warn strong{color:#6b0000}
+
+  .preview{background:var(--sheet); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:auto; max-height:70vh}
+  .preview .inner{padding:18px 24px}
+  .toc{border:1px dashed var(--line); border-radius:12px; padding:12px 14px; margin-bottom:16px}
+  .toc h4{margin:0 0 8px 0}
+  .toc .toc-item{display:flex; justify-content:space-between; gap:1rem; border-bottom:1px dotted rgba(0,0,0,.15); padding:4px 0}
+  .toc .toc-item:last-child{border-bottom:0}
+
+  .note{margin: 0 0 1.1rem}
+  .note h1, .note h2, .note h3{margin:1.2rem 0 .5rem}
+  .note h1{font-size:var(--fs-28)}
+  .note h2{font-size:var(--fs-24)}
+  .note h3{font-size:var(--fs-20)}
+  .note .ch{color:var(--accent); font-weight:700; margin-right:.5rem}
+  .note p{line-height:1.65}
+  code{font-family:var(--mono); background:rgba(0,0,0,.05); padding:.05rem .3rem; border-radius:6px}
+  pre{background:rgba(0,0,0,.04); border:1px solid var(--line); padding:10px 12px; border-radius:12px; overflow:auto}
+  pre code{background:transparent; padding:0}
+  blockquote{margin: .8rem 0; padding:.5rem 1rem; border-left:3px solid var(--accent); background:rgba(180,0,0,.05); border-radius:8px}
+  hr{border:none; border-top:1px dashed var(--line); margin:1rem 0}
+  .wikilink{color:var(--accent); text-decoration:none; border-bottom:1px dotted currentColor}
+  .broken{color:#888; font-style:italic; border-bottom:1px dotted #ccc}
+
+  /* Hidden pagination surface & print target */
+  #printSurface{position:absolute; left:-99999px; top:0; visibility:hidden}
+  #compiledForPrint{display:none}
+
+  @media print{
+    /* No texture in output */
+    html, body { background: #fff !important; }
+    body::before{ display:none !important; content:none !important; background:none !important; }
+
+    .topbar, .wrap{display:none !important}
+    #compiledForPrint{display:block !important}
+    *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+    @page{ /* size & margins injected at runtime */ }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="toprow">
+    <div class="brand"><span class="logo-main">Synaps</span><span class="logo-dot">.ing</span> <span style="opacity:.7">/ Book Builder</span></div>
+    <div class="row" style="margin-left:auto">
+      <label class="btn">Import JSON <input id="fileJson" type="file" accept="application/json" style="display:none"></label>
+      <label class="btn">Import Markdown (.zip) <input id="fileZip" type="file" accept=".zip,application/zip" style="display:none"></label>
+
+      <select id="pageSize" class="select" title="Page size">
+        <option value="letter" selected>Letter (8.5×11")</option>
+        <option value="legal">Legal (8.5×14")</option>
+        <option value="tabloid">Tabloid (11×17")</option>
+      </select>
+      <select id="margins" class="select" title="Margins">
+        <option value="0.5">0.5 inch</option>
+        <option value="0.75" selected>0.75 inch</option>
+        <option value="1.0">1.0 inch</option>
+      </select>
+      <select id="baseFont" class="select" title="Base font">
+        <option value="11">11 pt</option>
+        <option value="12" selected>12 pt</option>
+        <option value="13">13 pt</option>
+      </select>
+
+      <button id="btnRecompute" class="btn">Recompute</button>
+      <button id="btnPrint" class="btn primary">Export PDF</button>
+      <button id="btnExportHtml" class="btn">Export HTML</button>
+      <button id="btnExportMd" class="btn">Export Markdown</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- Left: ordering & settings -->
+  <section class="panel">
+    <h3>Stacks & Order</h3>
+    <div class="body">
+      <div id="stackList"></div>
+
+      <div class="section">
+        <h3>Settings</h3>
+        <div class="row">
+          <label class="input">
+            <span>Book title</span>
+            <input id="bookTitle" class="input" placeholder="Book"/>
+          </label>
+          <label class="input">
+            <span>Serif font</span>
+            <input id="serifFont" class="input" placeholder="e.g., Georgia, 'Times New Roman', serif"/>
+          </label>
+          <label class="input">
+            <span>Accent</span>
+            <input id="accentColor" type="color" value="#b40000" class="input" style="padding:.2rem .3rem; width:84px"/>
+          </label>
+        </div>
+
+        <div class="row">
+          <label class="btn" title="Replace [[links]] with Title (ID, page N) in the PDF">
+            <input id="toggleRefs" type="checkbox"> Rewrite links for PDF
+          </label>
+          <label class="btn" title="Show generated timestamp and source filename on title page">
+            <input id="toggleStamp" type="checkbox" checked> Show timestamp & filename
+          </label>
+        </div>
+      </div>
+
+      <div id="diag" class="warn" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- Right: preview -->
+  <section class="preview panel">
+    <div class="inner" id="preview">
+      <div style="opacity:.7">Import a Synaps.ing export (JSON recommended) or a Markdown .zip to build your book.</div>
+    </div>
+  </section>
+</main>
+
+<!-- Hidden pagination/print surfaces -->
+<div id="printSurface"></div>
+<div id="compiledForPrint"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- Helpers ---------------- */
+  const id = (x)=>document.getElementById(x);
+  const $ = (sel, root=document)=>root.querySelector(sel);
+  const $$ = (sel, root=document)=>Array.from(root.querySelectorAll(sel));
+  const TD = new TextDecoder();
+  const escapeHTML = s => String(s).replace(/[&<>]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+  const safeName = (s)=> (s||'book').toString().normalize('NFKD').replace(/[^\x20-\x7E]+/g,'').replace(/[^\w\-.]+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'' ) || 'book';
+  function downloadBlob(name, blob){
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
+
+  /* === Apply theme + typography === */
+  function applyTheme(){
+    const root = document.documentElement.style;
+    const serif = (id('serifFont').value||'').trim();
+    const accent = id('accentColor').value || '#b40000';
+    const basePt = parseInt(id('baseFont').value, 10) || 12;
+    if(serif) root.setProperty('--serif', serif);
+    root.setProperty('--accent', accent);
+    const px = (basePt * (96/72)).toFixed(2);
+    document.documentElement.style.fontSize = px + 'px';
+  }
+
+  function parseFrontMatter(md){
+    if(!md.startsWith('---')) return {meta:{}, body:md};
+    const end = md.indexOf('\n---', 3);
+    if(end===-1) return {meta:{}, body:md};
+    const head = md.slice(3, end).trim().split(/\r?\n/);
+    const meta = {};
+    head.forEach(line=>{
+      const m = line.match(/^([^:]+):\s*(.*)$/);
+      if(m){ meta[m[1].trim()] = m[2].trim(); }
+    });
+    const body = md.slice(end+4).replace(/^\s+/, '');
+    return {meta, body};
+  }
+
+  /* -------- Minimal Markdown -> HTML -------- */
+  function mdToHtml(md){
+    md = md.replace(/\r\n/g,'\n');
+    const blocks=[];
+    md = md.replace(/```([\s\S]*?)```/g,(_,code)=>{ const k='@@BLOCK'+blocks.length+'@@'; blocks.push('<pre><code>'+escapeHTML(code)+'</code></pre>'); return k; });
+    md = md.replace(/`([^`]+)`/g,'<code>$1</code>')
+           .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+           .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+           .replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(_,a,src)=>`<img alt="${escapeHTML(a)}" src="${escapeHTML(src)}" style="max-width:100%;">`)
+           .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2">$1</a>')
+           .replace(/^\s*---\s*$/gm,'<hr/>')  /* fixed */
+           .replace(/^(?:>\s?)(.*)$/gm,'<blockquote>$1</blockquote>')
+           .replace(/^######\s?(.*)$/gm,'<h6>$1</h6>')
+           .replace(/^#####\s?(.*)$/gm,'<h5>$1</h5>')
+           .replace(/^####\s?(.*)$/gm,'<h4>$1</h4>')
+           .replace(/^###\s?(.*)$/gm,'<h3>$1</h3>')
+           .replace(/^##\s?(.*)$/gm,'<h2>$1</h2>')
+           .replace(/^#\s?(.*)$/gm,'<h1>$1</h1>')
+           .replace(/^(?:\s*[-*]\s.*(?:\n|$))+?/gm,(b)=>`<ul>${b.trim().split(/\n/).map(l=>'<li>'+l.replace(/^\s*[-*]\s+/,'').trim()+'</li>').join('')}</ul>`);
+    md = md.split(/\n{2,}/).map(chunk=>{
+      if(/^\s*<(h\d|ul|ol|pre|blockquote|hr)/i.test(chunk)) return chunk;
+      return '<p>'+chunk.replace(/\n/g,'<br>')+'</p>';
+    }).join('\n');
+    blocks.forEach((html,i)=> md = md.replace('@@BLOCK'+i+'@@', html));
+    return md;
+  }
+
+  /* ---------------- Model ---------------- */
+  const model = {
+    stacks: [],
+    notes: [],
+    byId: new Map(),
+    byStack: new Map(),
+    titleIndex: new Map(),
+    chapterId: new Map(),
+    pageOf: new Map(),
+    anchorOf: new Map(),
+    warnings: { ambiguous:new Map(), missing:new Set() },
+    sourceName: ''
+  };
+
+  function resetModel(){
+    model.stacks=[]; model.notes=[]; model.byId.clear(); model.byStack.clear();
+    model.titleIndex.clear(); model.chapterId.clear(); model.pageOf.clear(); model.anchorOf.clear();
+    model.warnings.ambiguous.clear(); model.warnings.missing.clear(); model.sourceName='';
+  }
+
+  /* ---------------- Importers ---------------- */
+  async function importJson(file){
+    resetModel();
+    const text = await file.text(); const data = JSON.parse(text);
+    if(!Array.isArray(data.notes) || !Array.isArray(data.stacks)) throw new Error('JSON missing notes/stacks');
+    model.stacks = data.stacks.slice();
+    model.sourceName = file.name || 'notebook.json';
+    model.notes = data.notes.map(n=>({
+      uid: String(n.id || crypto.randomUUID()),
+      title: n.title || 'Untitled',
+      content: n.content || '',
+      stack: n.stack || 'Inbox',
+      parentId: n.parentId || null,
+      order: Number.isFinite(n.order)? n.order : 0,
+      created: n.created || null, modified: n.modified || n.created || null
+    }));
+    indexModel(false);
+  }
+
+  async function importZip(file){
+    resetModel();
+    model.sourceName = file.name || 'markdown.zip';
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const files = unzipStored(buf);
+    const stacks = new Set(); const notes=[];
+    for(const f of files){
+      if(f.name.endsWith('/')) continue;
+      if(!/\.md$/i.test(f.name)) continue;
+      const parts = f.name.replace(/\\/g,'/').split('/');
+      const stack = parts.length>1 ? parts.slice(0,-1).join('/') : 'Inbox';
+      const title = parts[parts.length-1].replace(/\.md$/i,'');
+      stacks.add(stack);
+      const text = TD.decode(f.data);
+      const {meta, body} = parseFrontMatter(text);
+      notes.push({
+        uid: crypto.randomUUID(),
+        title: meta.title || title || 'Untitled',
+        content: body || '',
+        stack: meta.stack || stack,
+        parentId: null, order: 0, created: meta.created||null, modified: meta.modified||null
+      });
+    }
+    model.stacks = Array.from(stacks);
+    model.notes = notes;
+    indexModel(true);
+  }
+
+  function unzipStored(bytes){
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let p=0; const out=[];
+    while(p+30 <= bytes.length){
+      const sig = dv.getUint32(p,true); if(sig!==0x04034b50) break;
+      const comp = dv.getUint16(p+8,true);
+      const nameLen = dv.getUint16(p+26,true), extraLen = dv.getUint16(p+28,true);
+      const name = new TextDecoder().decode(bytes.subarray(p+30, p+30+nameLen));
+      const dataStart = p+30+nameLen+extraLen;
+      const compSize = dv.getUint32(p+18,true), uncompSize = dv.getUint32(p+22,true);
+      if(comp!==0) throw new Error('This .zip is compressed; export Markdown (stored) from Synaps.ing.');
+      out.push({name, data: bytes.subarray(dataStart, dataStart+uncompSize)});
+      p = dataStart + compSize;
+    }
+    return out;
+  }
+
+  /* ---------------- Indexing & chapter IDs ---------------- */
+  function indexModel(alphaWithinStack){
+    model.byId.clear(); model.byStack.clear(); model.titleIndex.clear();
+    for(const n of model.notes){
+      model.byId.set(n.uid,n);
+      if(!model.byStack.has(n.stack)) model.byStack.set(n.stack,[]);
+      model.byStack.get(n.stack).push(n);
+      const k = (n.title||'').toLowerCase();
+      if(!model.titleIndex.has(k)) model.titleIndex.set(k,[]);
+      model.titleIndex.get(k).push(n);
+    }
+    model.stacks.forEach(s=>{
+      const arr = model.byStack.get(s)||[];
+      arr.sort((a,b)=> alphaWithinStack ? a.title.localeCompare(b.title) : ((a.order||0)-(b.order||0) || (a.created||'') < (b.created||'') ? -1 : 1));
+      model.byStack.set(s,arr);
+    });
+    computeHierarchy();
+    renderStacksPanel(); renderPreview();
+  }
+
+  function computeHierarchy(){
+    model.chapterId.clear(); model.anchorOf.clear();
+    let sIdx = 0;
+    for(const stack of model.stacks){
+      sIdx++;
+      const list = model.byStack.get(stack)||[];
+      const children = new Map(); const tops=[];
+      list.forEach(n=> children.set(n.uid,[]));
+      list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
+      const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
+      tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
+
+      (function dfs(nodes,prefix){
+        nodes.forEach((n,i)=>{
+          const parts=[sIdx].concat(prefix,[i+1]);
+          model.chapterId.set(n.uid, parts.join('.'));
+          model.anchorOf.set(n.uid, 'note-'+n.uid);
+          const kids=children.get(n.uid)||[];
+          if(kids.length) dfs(kids, prefix.concat([i+1]));
+        });
+      })(tops, []);
+    }
+  }
+
+  /* ---------------- UI: stacks + settings ---------------- */
+  function renderStacksPanel(){
+    const box = id('stackList'); box.innerHTML='';
+    model.stacks.forEach((name, idx)=>{
+      const count = (model.byStack.get(name)||[]).length;
+      const div = document.createElement('div');
+      div.className='stack-item'; div.dataset.name=name;
+      div.innerHTML = `
+        <div>
+          <div class="name">${escapeHTML(name)}</div>
+          <div class="count">${count} note${count===1?'':'s'}</div>
+        </div>
+        <div class="controls">
+          <button class="btn" data-act="up">▲</button>
+          <button class="btn" data-act="down">▼</button>
+        </div>`;
+      div.querySelector('[data-act="up"]').onclick = ()=>{
+        if(idx===0) return; const a=model.stacks[idx-1]; model.stacks[idx-1]=model.stacks[idx]; model.stacks[idx]=a; computeHierarchy(); renderStacksPanel(); renderPreview();
+      };
+      div.querySelector('[data-act="down"]').onclick = ()=>{
+        if(idx===model.stacks.length-1) return; const a=model.stacks[idx+1]; model.stacks[idx+1]=model.stacks[idx]; model.stacks[idx]=a; computeHierarchy(); renderStacksPanel(); renderPreview();
+      };
+      box.appendChild(div);
+    });
+  }
+
+  /* ---------------- Link resolution & preview ---------------- */
+  function resolveWiki(title, currentStack){
+    const k = (title||'').toLowerCase();
+    const arr = model.titleIndex.get(k)||[];
+    if(arr.length===0){ model.warnings.missing.add(title); return null; }
+    if(arr.length===1) return arr[0];
+    const same = arr.find(n=> n.stack===currentStack);
+    if(same) return same;
+    model.warnings.ambiguous.set(title, arr);
+    return arr[0];
+  }
+
+  function rewriteWikiLinks(html, currentStack){
+    // Convert [[Title]] → <a class="wikilink" data-uid="..." href="#note-UID">Title</a>
+    return html.replace(/\[\[([^\]]+?)\]\]/g, (m, t)=>{
+      const target = resolveWiki(String(t).trim(), currentStack);
+      if(!target) return `<span class="broken">[[${escapeHTML(t)}]]</span>`;
+      const aid = model.anchorOf.get(target.uid) || ('note-'+target.uid);
+      return `<a class="wikilink" data-uid="${target.uid}" href="#${aid}">${escapeHTML(target.title)}</a>`;
+    });
+  }
+
+  function renderPreview(){
+    applyTheme();
+    const pre = id('preview'); pre.innerHTML='';
+    const toc = document.createElement('div');
+    toc.className='toc'; toc.innerHTML = `<h4>Contents</h4><div id="tocItems"><em>Will populate after pagination…</em></div>`;
+    pre.appendChild(toc);
+
+    for(const stack of model.stacks){
+      const list = model.byStack.get(stack)||[];
+      if(!list.length) continue;
+      const sh = document.createElement('h2'); sh.textContent=stack; pre.appendChild(sh);
+
+      const children = new Map(); const tops=[];
+      list.forEach(n=> children.set(n.uid,[]));
+      list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
+      const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
+      tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
+
+      function renderAll(nodes, depth){
+        nodes.forEach(n=>{
+          const ch = model.chapterId.get(n.uid)||'—';
+          const article = document.createElement('article');
+          article.className='note'; article.id = model.anchorOf.get(n.uid) || ('note-'+n.uid);
+          const hn = Math.min(3, depth+1);
+          article.innerHTML = `<h${hn}><span class="ch">${ch}</span>${escapeHTML(n.title)}</h${hn}>
+            <div class="content">${rewriteWikiLinks(mdToHtml(n.content||''), n.stack)}</div>`;
+          pre.appendChild(article);
+          const kids = children.get(n.uid)||[]; if(kids.length) renderAll(kids, depth+1);
+        });
+      }
+      renderAll(tops,1);
+    }
+    computePageMap().then(updateTOC);
+    updateDiagnostics();
+  }
+
+  function updateDiagnostics(){
+    const diag = id('diag');
+    const amb = model.warnings.ambiguous; const miss = model.warnings.missing;
+    if(amb.size || miss.size){
+      const lines=[];
+      if(amb.size){
+        lines.push(`<strong>Ambiguous links</strong>:`);
+        amb.forEach((arr,title)=>{
+          const picks = arr.map(n=> `${escapeHTML(n.title)} <span style="opacity:.7">(${escapeHTML(n.stack)})</span>`).join(', ');
+          lines.push(`• [[${escapeHTML(title)}]] → ${picks}`);
+        });
+      }
+      if(miss.size){
+        lines.push(`<strong>Missing links</strong>: ${Array.from(miss).map(t=>'[['+escapeHTML(t)+']]').join(', ')}`);
+      }
+      diag.innerHTML = lines.join('<br>');
+      diag.style.display='block';
+    }else{
+      diag.style.display='none';
+    }
+  }
+
+  /* ---------------- Pagination ---------------- */
+  const DPI = 96;
+  const px = (inches)=> Math.round(inches * DPI);
+
+  function pageConfig(){
+    const size = id('pageSize').value;
+    const margins = parseFloat(id('margins').value);
+
+    let dims;
+    if(size==='legal')   dims = {wIn:8.5, hIn:14};
+    else if(size==='tabloid') dims = {wIn:11, hIn:17};
+    else /*letter*/      dims = {wIn:8.5, hIn:11};
+
+    const printable = {wIn: dims.wIn - 2*margins, hIn: dims.hIn - 2*margins};
+
+    /* Header/Footer compensation to better match Chrome when those are on */
+    const HF_COMP_IN = 0.50; // top & bottom
+    const measureHIn = Math.max(1, printable.hIn - (HF_COMP_IN * 2));
+
+    return {
+      size, margins, dims, printable,
+      wPx: px(printable.wIn),
+      hPxMeasure: px(measureHIn)
+    };
+  }
+
+  function buildBookDOM(forMeasure=false){
+    const container = document.createElement('div');
+    container.id = forMeasure ? 'measureBook' : 'book';
+
+    // Title block
+    const title = (id('bookTitle').value||'Book').trim() || 'Book';
+    const showStamp = id('toggleStamp').checked;
+    const stamp = showStamp ? `<div style="opacity:.75; font-size:0.9em; margin:.3rem 0 0">
+      Generated ${new Date().toLocaleString()} · Source: ${escapeHTML(model.sourceName||'—')}
+    </div>` : '';
+    const head = document.createElement('div');
+    head.innerHTML = `<h1 style="margin:0 0 1rem">${escapeHTML(title)}</h1>${stamp}<hr/>`;
+    container.appendChild(head);
+
+    // TOC (numbers filled by updateTOC())
+    const tocWrap = document.createElement('section');
+    tocWrap.innerHTML = `<h2>Contents</h2>`;
+    const tocClone = id('tocItems')?.cloneNode(true) || document.createElement('div');
+    tocWrap.appendChild(tocClone);
+    container.appendChild(tocWrap);
+
+    // Content
+    const preview = id('preview').cloneNode(true);
+    const dropFirst = preview.querySelector('.toc'); if(dropFirst) dropFirst.remove();
+
+    // For PDF: rewrite [[links]] as static text with chapter + page
+    if(!forMeasure && id('toggleRefs').checked){
+      $$('.wikilink', preview).forEach(a=>{
+        const uid = a.getAttribute('data-uid');
+        const titleText = a.textContent;
+        const ch = model.chapterId.get(uid)||'—';
+        const pg = model.pageOf.get(uid)||'—';
+        a.replaceWith(document.createTextNode(`${titleText} (${ch}, page ${pg})`));
+      });
+    }
+
+    container.appendChild(preview);
+    return container;
+  }
+
+  async function computePageMap(){
+    const {wPx, hPxMeasure} = pageConfig();
+    const surface = id('printSurface'); surface.innerHTML='';
+    const host = document.createElement('div');
+    host.style.width = wPx+'px'; host.style.boxSizing='content-box';
+    applyTheme(); // ensure font scaling matches settings
+    host.appendChild(buildBookDOM(true));
+    surface.appendChild(host);
+    await new Promise(r=> requestAnimationFrame(()=> requestAnimationFrame(r)));
+
+    model.pageOf.clear();
+    $$('.note', host).forEach(note=>{
+      const idAttr = note.id || '';
+      const uid = idAttr.replace(/^note-/,'');
+      const top = note.offsetTop;
+      const page = Math.floor(top / hPxMeasure) + 1;
+      model.pageOf.set(uid, page);
+    });
+  }
+
+  function updateTOC(){
+    const toc = id('tocItems'); if(!toc) return;
+    const items=[];
+    for(const stack of model.stacks){
+      const list = model.byStack.get(stack)||[];
+      const children = new Map(); const tops=[];
+      list.forEach(n=> children.set(n.uid,[]));
+      list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
+      const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
+      tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
+
+      (function walk(nodes){
+        nodes.forEach(n=>{
+          const ch = model.chapterId.get(n.uid)||'—';
+          const page = model.pageOf.get(n.uid)||'—';
+          items.push(`<div class="toc-item"><span>${escapeHTML(ch)} ${escapeHTML(n.title)}</span><span>${page}</span></div>`);
+          const kids = children.get(n.uid)||[];
+          if(kids.length) walk(kids);
+        });
+      })(tops);
+    }
+    toc.innerHTML = items.length ? items.join('') : '<em>No content</em>';
+  }
+
+  /* ---------------- Compile & Print ---------------- */
+  function compileForPrint(){
+    const target = id('compiledForPrint'); target.innerHTML=''; target.style.display='block';
+    applyTheme();
+
+    const {size, margins} = pageConfig();
+
+    const style = document.createElement('style');
+    style.textContent = `
+      @page{ size: ${size==='legal'?'Legal': size==='tabloid'?'Tabloid':'Letter'}; margin: ${margins}in; }
+      #compiledForPrint{ line-height:1.55; padding:0; background:#fff !important; }
+      #compiledForPrint .wikilink{ text-decoration:none; color:inherit; border:0 }
+      #compiledForPrint h1, #compiledForPrint h2, #compiledForPrint h3{ page-break-after: avoid; }
+      #compiledForPrint pre, #compiledForPrint blockquote{ page-break-inside: avoid; }
+    `;
+    target.appendChild(style);
+
+    target.appendChild(buildBookDOM(false));
+  }
+
+  /* ---------------- Export: HTML & Markdown (no page numbers in links) ---------------- */
+  function htmlEsc(s){ return escapeHTML(s); }
+  function cssValue(varName){
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || '';
+  }
+
+function exportHTML(){
+  applyTheme();
+  const title = (id('bookTitle').value||'Book').trim() || 'Book';
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#b40000';
+  const serif  = getComputedStyle(document.documentElement).getPropertyValue('--serif').trim()  || "Georgia, 'Times New Roman', serif";
+  const mono   = getComputedStyle(document.documentElement).getPropertyValue('--mono').trim()   || 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace';
+
+  // Build body (with TOC that links to anchors)
+  let body = `<h1>${escapeHTML(title)}</h1>\n<h2>Contents</h2>\n<ul>\n`;
+  (function buildTOC(){
+    for(const stack of model.stacks){
+      const list = model.byStack.get(stack)||[];
+      const children = new Map(); const tops=[];
+      list.forEach(n=> children.set(n.uid,[]));
+      list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
+      const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
+      tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
+      (function walk(nodes){
+        nodes.forEach(n=>{
+          const ch  = model.chapterId.get(n.uid)||'—';
+          const aid = model.anchorOf.get(n.uid);
+          body += `<li><a href="#${aid}">${escapeHTML(ch)} ${escapeHTML(n.title)}</a></li>\n`;
+          const kids = children.get(n.uid)||[]; if(kids.length) walk(kids);
+        });
+      })(tops);
+    }
+  })();
+  body += `</ul>\n`;
+
+  // Helpers: content rendering with non-clickable wiki links "Title (1.2.3)"
+  function contentWithStaticLinks(note){
+    // First: produce HTML with standard wiki anchors...
+    let html = rewriteWikiLinks(mdToHtml(note.content||''), note.stack);
+    // ...then replace those anchors with plain text "Title (1.2.3)"
+    html = html.replace(/<a class="wikilink"[^>]*data-uid="([^"]+)"[^>]*>(.*?)<\/a>/g, (_m, uid, inner)=>{
+      const ch = model.chapterId.get(uid)||'—';
+      return `${inner} (${escapeHTML(ch)})`;
+    });
+    return html;
+  }
+
+  // Content (with section anchors for TOC only)
+  for(const stack of model.stacks){
+    const list = model.byStack.get(stack)||[];
+    if(!list.length) continue;
+    body += `<h2>${escapeHTML(stack)}</h2>\n`;
+
+    const children = new Map(); const tops=[];
+    list.forEach(n=> children.set(n.uid,[]));
+    list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
+    const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
+    tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
+
+    (function renderAll(nodes, depth){
+      nodes.forEach(n=>{
+        const ch  = model.chapterId.get(n.uid)||'—';
+        const hn  = Math.min(3, depth+1);
+        const aid = model.anchorOf.get(n.uid);
+        body += `<h${hn} id="${aid}"><span style="color:${accent};font-weight:700;margin-right:.5rem">${escapeHTML(ch)}</span>${escapeHTML(n.title)}</h${hn}>\n`;
+        body += `<div>${contentWithStaticLinks(n)}</div>\n`;
+        const kids = children.get(n.uid)||[]; if(kids.length) renderAll(kids, depth+1);
+      });
+    })(tops,1);
+  }
+
+  const css = `body{font-family:${serif};color:#111;line-height:1.65;max-width:860px;margin:40px auto;padding:0 20px}
+h1{font-size:2rem;margin:0 0 .75rem} h2{font-size:1.5rem;margin:1.25rem 0 .5rem} h3{font-size:1.25rem;margin:1rem 0 .4rem}
+h4,h5,h6{margin:.9rem 0 .4rem} code{font-family:${mono};background:#f5f5f5;padding:.05rem .3rem;border-radius:6px}
+pre{background:#f7f7f7;border:1px solid #ddd;padding:10px 12px;border-radius:8px;overflow:auto}
+a{text-decoration:none;border-bottom:1px dotted currentColor;color:${accent}}
+blockquote{margin:.8rem 0;padding:.5rem 1rem;border-left:3px solid ${accent};background:rgba(180,0,0,.05);border-radius:8px}
+.wikilink{color:${accent};border-bottom:1px dotted currentColor}`;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHTML(title)}</title><style>${css}</style></head><body>${body}</body></html>`;
+  downloadBlob(safeName(title)+'.html', new Blob([html], {type:'text/html'}));
+}
+
+// === REPLACE the existing exportMarkdown() with this ===
+function exportMarkdown(){
+  const title = (id('bookTitle').value||'Book').trim() || 'Book';
+
+  // Transform helpers: keep everything content-only, and normalize links to [[...]]
+  function normalizeLinksToWiki(text){
+    if(!text) return '';
+    const blocks=[];
+
+    // Protect fenced code
+    text = text.replace(/```[\s\S]*?```/g, m=>{ const k='§§BLOCK'+blocks.length+'§§'; blocks.push(m); return k; });
+    // Protect inline code
+    text = text.replace(/`[^`]*`/g, m=>{ const k='§§INL'+blocks.length+'§§'; blocks.push(m); return k; });
+
+    // >>Subnote>> → [[Subnote]]
+    text = text.replace(/(?:>>|&gt;&gt;)\s*([^>]+?)\s*(?:>>|&gt;&gt;)/g, (_m, t)=> `[[${t.trim()}]]`);
+
+    // Standard markdown links [label](url) → [[label]]
+    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label)=> `[[${label.trim()}]]`);
+
+    // (Wiki links [[...]] are left as-is)
+
+    // Restore code blocks / inline
+    text = text.replace(/§§INL(\d+)§§/g, (_m, i)=> blocks[Number(i)]);
+    text = text.replace(/§§BLOCK(\d+)§§/g, (_m, i)=> blocks[Number(i)]);
+    return text;
+  }
+
+  let out = ''; // no TOC — content only
+
+  for(const stack of model.stacks){
+    const list = model.byStack.get(stack)||[];
+    if(!list.length) continue;
+
+    out += `## ${stack}\n\n`; // keep structure headings (no TOC)
+
+    const children = new Map(); const tops=[];
+    list.forEach(n=> children.set(n.uid,[]));
+    list.forEach(n=>{ if(n.parentId && children.has(n.parentId)) children.get(n.parentId).push(n); else tops.push(n); });
+    const sorter=(a,b)=>(a.order||0)-(b.order||0) || a.title.localeCompare(b.title);
+    tops.sort(sorter); for(const k of children.keys()) children.get(k).sort(sorter);
+
+    (function renderAll(nodes, depth){
+      nodes.forEach(n=>{
+        const ch  = model.chapterId.get(n.uid)||'—';
+        const hn  = Math.min(6, 2 + depth); // stack=h2, top=h3, etc.
+        out += `${'#'.repeat(hn)} ${ch} ${n.title}\n\n`;
+        out += `${normalizeLinksToWiki(n.content||'')}\n\n`;
+        const kids = children.get(n.uid)||[]; if(kids.length) renderAll(kids, depth+1);
+      });
+    })(tops,1);
+  }
+
+  downloadBlob(safeName(title)+'.md', new Blob([out], {type:'text/markdown'}));
+}
+
+  /* ---------------- Wiring ---------------- */
+  id('fileJson').addEventListener('change', async ()=>{
+    const f = id('fileJson').files[0]; if(!f) return;
+    try{ await importJson(f); }
+    catch(err){ alert('Import failed: '+ err.message); }
+    finally{ id('fileJson').value=''; }
+  });
+
+  id('fileZip').addEventListener('change', async ()=>{
+    const f = id('fileZip').files[0]; if(!f) return;
+    try{ await importZip(f); }
+    catch(err){ alert('Import failed: '+ err.message); }
+    finally{ id('fileZip').value=''; }
+  });
+
+  ['pageSize','margins','baseFont'].forEach(k=> id(k).addEventListener('change', ()=>{ renderPreview(); }));
+  ['serifFont','accentColor'].forEach(k=> id(k).addEventListener('input', ()=>{ applyTheme(); }));
+
+  id('toggleRefs').addEventListener('change', ()=>{/* applied at compile */});
+  id('toggleStamp').addEventListener('change', ()=>{/* applied at compile */});
+
+  id('btnRecompute').addEventListener('click', async ()=>{
+    await computePageMap(); updateTOC();
+    await computePageMap(); updateTOC();
+  });
+
+  id('btnPrint').addEventListener('click', async ()=>{
+    await computePageMap(); updateTOC();
+    await computePageMap(); updateTOC();
+    compileForPrint();
+    window.print();
+    setTimeout(()=>{ id('compiledForPrint').style.display='none'; }, 1000);
+  });
+
+  id('btnExportHtml').addEventListener('click', ()=>{
+    exportHTML();
+  });
+  id('btnExportMd').addEventListener('click', ()=>{
+    exportMarkdown();
+  });
+
+  // Initialize defaults
+  (function init(){
+    id('bookTitle').value = 'Book';
+    id('serifFont').value = "Georgia, 'Times New Roman', serif";
+    id('accentColor').value = '#b40000';
+    applyTheme();
+  })();
+
+})();
+</script>
+</body>
+</html>
