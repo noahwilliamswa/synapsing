@@ -792,14 +792,18 @@ function compileForPrint(){
 
     /* Our per-page number markers (we'll create one per page via JS) */
     @media print{
-      #compiledForPrint ._pgmark{
-        position: absolute;
-        right: 0;                          /* flush with content box right edge */
-        font-size: 0.875rem;
-        opacity: .75;
-        z-index: 9999;
-        pointer-events: none;
-      }
+        #compiledForPrint ._pgno{
+            position: fixed;
+            right: var(--print-margin);    /* respect the page margin */
+            bottom: var(--pgno-nudge);     /* bottom-right of the content box */
+            font-size: 0.875rem;
+            opacity: .75;
+            z-index: 9999;
+            pointer-events: none;
+        }
+        #compiledForPrint ._pgno::after{
+            content: counter(page);
+        }
     }
   `;
   target.appendChild(style);
@@ -808,21 +812,13 @@ function compileForPrint(){
   const book = buildBookDOM(false);
   target.appendChild(book);
 
-  // After layout, place one page marker per page at the bottom-right
-  // We compute using the printable height in *inches* to avoid DPI quirks.
-  requestAnimationFrame(()=>{
-    const totalPages = Math.max(1, Math.ceil(book.scrollHeight / px(printable.hIn)));
-    // Clean up any old markers (in case of re-run)
-    $$('#compiledForPrint ._pgmark').forEach(n => n.remove());
-    for (let i = 1; i <= totalPages; i++){
-      const m = document.createElement('div');
-      m.className = '_pgmark';
-      // Put the marker at the bottom of page i, nudged up a bit
-      m.style.top = `calc(${i} * ${printable.hIn}in - var(--pgno-nudge))`;
-      m.textContent = String(i);
-      target.appendChild(m);
+  // Single fixed page-number footer for every printed page
+    if (id('togglePgNums')?.checked){
+    const pg = document.createElement('div');
+    pg.className = '_pgno';
+    pg.setAttribute('aria-hidden','true');
+    target.appendChild(pg);
     }
-  });
 }
 
   /* ---------------- Export: HTML & Markdown (no page numbers in links) ---------------- */
