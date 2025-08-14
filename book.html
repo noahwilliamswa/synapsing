@@ -812,14 +812,13 @@ function normalizeInternalLinks(text){
     style.textContent += `
     /* Our PDF page number (bottom-right), independent of system headers/footers */
     #compiledForPrint{
-        --print-margin: ${margins}in;
-        --pgno-nudge: 0.08in;                 /* push slightly below the content box */
+        --pgno-nudge: 0.08in; /* tweak to taste */
     }
     @media print{
         #compiledForPrint ._pgno{
         position: fixed;
-        right: var(--print-margin);         /* align with content width (margin-aware) */
-        bottom: calc(var(--print-margin) - var(--pgno-nudge));
+        right: 0;                          /* align with content box’s right edge */
+        bottom: calc(0px - var(--pgno-nudge)); /* drop slightly into bottom margin */
         font-size: 0.875rem;
         opacity: .75;
         z-index: 9999;
@@ -828,7 +827,8 @@ function normalizeInternalLinks(text){
         #compiledForPrint ._pgno::after{
         content: counter(page);
         }
-    }`;
+    }
+    `;
     }
 
 
