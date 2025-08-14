@@ -336,9 +336,49 @@
     .right-rail{order:3}
     .searchbox input[type="search"]{ min-width:18ch; }
   }
+
+  /* ===== Mobile Guard (blocks small/mobile) ===== */
+.mobile-guard{
+position:fixed; inset:0; z-index:1000;
+display:none; align-items:center; justify-content:center;
+background:linear-gradient(180deg, color-mix(in oklab, var(--paper) 96%, white), color-mix(in oklab, var(--paper) 88%, white));
+text-align:center; padding:24px;
+}
+.mobile-guard .panel{
+max-width:520px; width:min(92vw,520px);
+background:var(--sheet); border:1px solid var(--line);
+border-radius:var(--radius); box-shadow:var(--shadow);
+padding:18px;
+}
+.mobile-guard h2{ margin:.25rem 0 .5rem; font-size:var(--fs-18) }
+.mobile-guard p{ margin:.35rem 0; font-size:var(--fs-13) }
+.mobile-guard .btn-row{ display:flex; gap:.5rem; justify-content:center; margin-top:.75rem }
+
+@media (max-width: 900px){
+/* show the guard */
+.mobile-guard{ display:flex; }
+/* hide the app chrome behind it */
+body:not(.mobile-override) .topbar,
+body:not(.mobile-override) .wrap,
+body:not(.mobile-override) .bottombar { display:none !important; }
+}
+/* allow override */
+body.mobile-override .mobile-guard{ display:none !important; }
+
 </style>
 </head>
 <body class="scroll-minimal">
+<!-- ===== Mobile Guard ===== -->
+<div class="mobile-guard" id="mobileGuard" role="dialog" aria-live="polite">
+  <div class="panel">
+    <h2>Not mobile-friendly (yet)</h2>
+    <p>This editor is designed for a desktop or laptop. Phones/tablets will look janky.</p>
+    <div class="btn-row">
+      <button class="btn" id="mobileOverrideBtn" title="Ignore and continue">Let me in anyway</button>
+    </div>
+    <div class="subtle" style="margin-top:6px">You can disable this anytime by resizing your window or clearing site data.</div>
+  </div>
+</div>
 
 <!-- ===== Inline Icons ===== -->
 <svg width="0" height="0" style="position:absolute;visibility:hidden">
@@ -729,6 +769,19 @@ Cmd/Ctrl+F search · Cmd/Ctrl+Shift+F toggle filter · Cmd/Ctrl+Alt+T toggle tra
     linkPicker: id('linkPicker'),
     downloadApp: id('downloadApp')
   };
+  /* ---------- Mobile Guard ---------- */
+(function mobileGuard(){
+  const KEY = 'synapsing_mobile_override';
+  // apply persisted choice
+  if (localStorage.getItem(KEY) === '1') document.body.classList.add('mobile-override');
+  // click handler for the "let me in anyway" button
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('#mobileOverrideBtn');
+    if(!btn) return;
+    localStorage.setItem(KEY, '1');
+    document.body.classList.add('mobile-override');
+  });
+})();
 
   /* ---------- Preferences ---------- */
   function loadPrefs(){
@@ -1636,4 +1689,3 @@ Link with [[First Idea]] (sibling). Use >>Next Steps>> to create a child if it�
 </script>
 </body>
 </html>
-
