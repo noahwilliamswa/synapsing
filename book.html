@@ -762,38 +762,35 @@ function normalizeInternalLinks(text){
         font-style: italic;
     }
 
-    /* === TOC with leaders and right-aligned page numbers (print) === */
+    /* === TOC leaders (robust in PDF) + right-aligned page numbers === */
     #compiledForPrint .toc .toc-item{
-        display:flex;
-        align-items:flex-end;      /* align baselines on the last line */
-        gap:.6rem;
-        border:0;
-        padding:.12rem 0;
+    display:flex;
+    align-items:baseline;
+    gap:.6rem;
+    border:0;
+    padding:.12rem 0;
     }
-    /* Title (wraps) */
     #compiledForPrint .toc .toc-item .toc-title{
-        flex:0 1 auto;
-        min-width:0;
-        overflow-wrap:anywhere;
+    flex:0 1 auto;
+    min-width:0;
+    overflow-wrap:anywhere;
     }
-    /* Leader fills remaining width on the last line */
     #compiledForPrint .toc .toc-item .toc-leader{
-        flex:1 1 auto;
-        height:0.9em;
-        align-self:center;
-        background: repeating-linear-gradient(
-            to right,
-            currentColor 0 1px,
-            transparent 1px 4px
-        );
-        opacity:.5;
+    flex:1 1 auto;
+    position:relative;
     }
-    /* Page number column (fixed, right-aligned) */
+    #compiledForPrint .toc .toc-item .toc-leader::before{
+    content:"";
+    position:relative;
+    top:.45em;                 /* nudge to the text baseline */
+    display:block;
+    border-bottom:1px dashed currentColor;  /* change to dotted if you prefer */
+    }
     #compiledForPrint .toc .toc-item .toc-page{
-        flex:0 0 auto;
-        min-width:3ch;            /* room for 1–3 digits */
-        text-align:right;
-        margin-left:.4rem;
+    flex:0 0 auto;
+    min-width:3ch;
+    text-align:right;
+    margin-left:.4rem;
     }
 
     #compiledForPrint h1, #compiledForPrint h2, #compiledForPrint h3{ page-break-after: avoid; }
@@ -804,6 +801,7 @@ function normalizeInternalLinks(text){
 
     target.appendChild(buildBookDOM(false));
   }
+
 
   /* ---------------- Export: HTML & Markdown (no page numbers in links) ---------------- */
   function htmlEsc(s){ return escapeHTML(s); }
